@@ -87,11 +87,30 @@ mod tests {
         component_registry.register_component::<FirstComponent>();
         component_registry.register_component::<NextComponent>();
 
-        let prefab = compile(&definition, &component_registry);
+        let mut prefab = compile(&definition, &component_registry);
         assert_eq!(prefab.name, "root".to_string());
         assert_eq!(prefab.nodes[0].name, "root".to_string());
         assert_eq!(prefab.nodes[0].index, 0);
         assert_eq!(prefab.nodes[1].name, "child".to_string());
         assert_eq!(prefab.nodes[1].index, 1);
+
+        let mut world = hecs::World::new();
+        for node in &mut prefab.nodes {
+            let entity = world.spawn(node.builder.build());
+            let first = world.get::<&FirstComponent>(entity).unwrap();
+            let next = world.get::<&NextComponent>(entity).unwrap();
+
+            if node.index == 0 {
+                assert_eq!(first.a, 1);
+                assert_eq!(first.b, 2);
+                assert_eq!(next.an_array, vec!["one", "two", "three"]);
+            }
+
+            if node.index == 1 {
+                assert_eq!(first.a, 2);
+                assert_eq!(first.b, 3);
+                assert_eq!(next.an_array, vec!["four", "five", "six"]);
+            }
+        }
     }
 }
