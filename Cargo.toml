@@ -1,7 +1,8 @@
 [workspace]
-members = [ "component_registry",
+members = [
+    "bonk",
+    "component_registry",
     "demo_platformer",
-    "editor",
     "engine",
     "engine_protocol",
     "engine_types",
