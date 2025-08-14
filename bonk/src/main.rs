@@ -170,6 +170,18 @@ impl winit::application::ApplicationHandler for App {
         use winit::event::WindowEvent;
         let state = self.state.as_mut().unwrap();
 
+        // The logic here is a little weird.
+        // First, resized events are special: both we and yakui need to handle them
+        if let WindowEvent::Resized(size) = event {
+            state
+                .yakui_winit
+                .handle_window_event(&mut state.render_state.yak, &event);
+
+            state.lazy_vulkan.resize(size.width, size.height);
+            return;
+        };
+
+        // Next, we hand the event to yakui-winit to see if it wants it
         if state
             .yakui_winit
             .handle_window_event(&mut state.render_state.yak, &event)
@@ -177,6 +189,7 @@ impl winit::application::ApplicationHandler for App {
             return;
         }
 
+        // Finally, we see if it's something else we care about
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
