@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 lazy_vulkan = { version = "0.1.0", path = "../../lazy_vulkan" }
-winit = "0.30.12"
-yakui = { git = "https://github.com/SecondHalfGames/yakui.git", version = "0.3.0" }
-yakui-vulkan = { git = "https://github.com/SecondHalfGames/yakui.git", version = "0.3.0" }
-yakui-winit = { git = "https://github.com/SecondHalfGames/yakui.git", version = "0.3.0" }
+winit.workspace = true
+yakui.workspace = true
+yakui-vulkan.workspace = true
+yakui-winit.workspace = true

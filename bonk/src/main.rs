@@ -36,10 +36,9 @@ impl YakuiRenderer {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 struct RenderState {
-    // This seems equal parts insane and reasonable, I'm not sure why
-    paint_dom: *const yakui::paint::PaintDom,
+    yak: yakui::Yakui,
 }
 
 impl SubRenderer for YakuiRenderer {
@@ -48,8 +47,8 @@ impl SubRenderer for YakuiRenderer {
     fn stage_transfers(&mut self, render_state: &Self::State, _: &mut lazy_vulkan::Allocator) {
         let vulkan_context = &ctx(&self.context);
 
-        // SAFETY: You *MUST* have called `yak.paint()` and set paint_dom accordingly
-        let paint = unsafe { render_state.paint_dom.as_ref().unwrap() };
+        // You *MUST* have called `yak.paint() this frame`
+        let paint = render_state.yak.paint_dom();
 
         unsafe {
             self.yakui_vulkan.transfers_finished(vulkan_context);
@@ -66,8 +65,8 @@ impl SubRenderer for YakuiRenderer {
     ) {
         let vulkan_context = &ctx(&context);
 
-        // SAFETY: You *MUST* have called `yak.paint()` and set paint_dom accordingly
-        let paint = unsafe { render_state.paint_dom.as_ref().unwrap() };
+        // You *MUST* have called `yak.paint()` this frame
+        let paint = render_state.yak.paint_dom();
 
         let device = &context.device;
         let command_buffer = context.draw_command_buffer;
@@ -123,8 +122,8 @@ struct AppState {
     window: winit::window::Window,
     lazy_vulkan: LazyVulkan,
     sub_renderers: Vec<Box<dyn SubRenderer<State = RenderState>>>,
-    yak: yakui::Yakui,
     yakui_winit: yakui_winit::YakuiWinit,
+    render_state: RenderState,
 }
 
 #[derive(Default)]
@@ -157,8 +156,8 @@ impl winit::application::ApplicationHandler for App {
             window,
             lazy_vulkan,
             sub_renderers,
-            yak,
             yakui_winit,
+            render_state: RenderState { yak },
         })
     }
 
@@ -173,7 +172,7 @@ impl winit::application::ApplicationHandler for App {
 
         if state
             .yakui_winit
-            .handle_window_event(&mut state.yak, &event)
+            .handle_window_event(&mut state.render_state.yak, &event)
         {
             return;
         }
@@ -181,11 +180,10 @@ impl winit::application::ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
-                let paint_dom = draw_gui(&mut state.yak);
-                let render_state = RenderState { paint_dom };
+                draw_gui(&mut state.render_state.yak);
                 state
                     .lazy_vulkan
-                    .draw(&render_state, &mut state.sub_renderers);
+                    .draw(&state.render_state, &mut state.sub_renderers);
             }
             _ => {}
         }
