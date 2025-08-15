@@ -1,11 +1,16 @@
 mod gui;
 mod scene_renderer;
 mod yakui_renderer;
-use crate::{gui::draw_gui, scene_renderer::SceneRenderer, yakui_renderer::YakuiRenderer};
+use crate::{
+    gui::{draw_gui, spawn_entity_for_node},
+    scene_renderer::SceneRenderer,
+    yakui_renderer::YakuiRenderer,
+};
 use component_registry::ComponentRegistry;
-use engine_types::{Prefab, PrefabDefinition, Scene};
+use engine_types::{NodeID, Prefab, PrefabDefinition, Scene};
+use hecs::Entity;
 use lazy_vulkan::{LazyVulkan, SubRenderer};
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::PathBuf};
 use winit::window::WindowAttributes;
 
 pub struct RenderState {
@@ -23,19 +28,20 @@ struct AppState {
     #[allow(unused)]
     component_registry: ComponentRegistry,
     scene: Scene,
+    node_entity_map: HashMap<NodeID, Entity>,
 }
 
 #[derive(Default)]
 struct App {
     state: Option<AppState>,
-    project_path: String,
+    project_path: PathBuf,
 }
 
 impl App {
     fn new(project_path: String) -> Self {
         Self {
             state: None,
-            project_path,
+            project_path: PathBuf::from(project_path),
         }
     }
 }
@@ -53,7 +59,7 @@ impl winit::application::ApplicationHandler for App {
         let mut lazy_vulkan = lazy_vulkan::LazyVulkan::from_window(&window);
         let mut yak = yakui::Yakui::new();
 
-        let asset_path = Path::new(&self.project_path).join("assets");
+        let asset_path = self.project_path.join("assets");
 
         let sub_renderers = vec![
             SceneRenderer::new(&mut lazy_vulkan, asset_path),
@@ -66,20 +72,25 @@ impl winit::application::ApplicationHandler for App {
 
         let yakui_winit = yakui_winit::YakuiWinit::new(&window);
         let mut component_registry = get_component_registry();
-        let loaded_prefabs = load_prefabs(&self.project_path, &mut component_registry);
+        let mut loaded_prefabs =
+            load_prefabs(self.project_path.join("prefabs"), &mut component_registry);
+
+        let (scene, world, node_entity_map) = load_scene(
+            &self.project_path.join("scenes").join("default.json"),
+            &mut loaded_prefabs,
+            &component_registry,
+        );
 
         self.state = Some(AppState {
             window,
             lazy_vulkan,
             sub_renderers,
             yakui_winit,
-            render_state: RenderState {
-                yak,
-                world: Default::default(),
-            },
+            render_state: RenderState { yak, world },
             loaded_prefabs,
             component_registry,
-            scene: Default::default(),
+            scene,
+            node_entity_map,
         })
     }
 
@@ -115,7 +126,8 @@ impl winit::application::ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
-                draw_gui(state);
+                let scene_path = self.project_path.join("scenes").join("default.json");
+                draw_gui(state, &scene_path);
                 state
                     .lazy_vulkan
                     .draw(&state.render_state, &mut state.sub_renderers);
@@ -130,6 +142,53 @@ impl winit::application::ApplicationHandler for App {
     }
 }
 
+fn load_scene(
+    path: &PathBuf,
+    loaded_prefabs: &mut HashMap<String, Prefab>,
+    component_registry: &ComponentRegistry,
+) -> (Scene, hecs::World, HashMap<NodeID, Entity>) {
+    if !path.exists() {
+        println!("trying to read {path:?}");
+        std::fs::write(
+            path,
+            serde_json::to_string_pretty(&Scene::default()).unwrap(),
+        )
+        .unwrap();
+    }
+
+    let scene: Scene =
+        serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(path).unwrap()))
+            .unwrap();
+
+    let mut world = hecs::World::new();
+    let mut node_entity_map = HashMap::new();
+
+    // Walk through each instance and spawn entities for each node
+    for instance in &scene.instances {
+        let prefab_name = &instance.prefab;
+        let prefab = loaded_prefabs.get_mut(prefab_name).unwrap();
+
+        for (node_index, instance_node) in &instance.nodes {
+            let node = prefab.nodes.get_mut(*node_index).unwrap();
+            let entity = spawn_entity_for_node(&mut world, node);
+            node_entity_map.insert(instance_node.node_id, entity);
+
+            let mut entity_builder = hecs::EntityBuilder::new();
+            for (component_name, component) in &instance_node.overrides {
+                component_registry.add_component_to_builder(
+                    component_name,
+                    component.clone(),
+                    &mut entity_builder,
+                );
+            }
+
+            world.insert(entity, entity_builder.build()).unwrap()
+        }
+    }
+
+    (scene, world, node_entity_map)
+}
+
 fn get_component_registry() -> ComponentRegistry {
     let mut registry = ComponentRegistry::default();
     use engine_types::components::*;
@@ -139,10 +198,9 @@ fn get_component_registry() -> ComponentRegistry {
 }
 
 fn load_prefabs(
-    project_path: &str,
+    prefabs_path: PathBuf,
     component_registry: &mut ComponentRegistry,
 ) -> HashMap<String, Prefab> {
-    let prefabs_path = std::path::Path::new(project_path).join("prefabs");
     println!("Prefabs path: {:?}", prefabs_path);
     let mut prefabs = HashMap::new();
 

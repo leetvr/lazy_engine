@@ -5,12 +5,51 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone, Default)]
 pub struct Scene {
-    pub prefabs: Vec<InstantiatedPrefab>,
+    pub instances: Vec<PrefabInstance>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Default)]
-pub struct InstantiatedPrefab {
-    pub name: String,
+pub struct PrefabInstance {
+    pub instance_id: InstanceID,
+    pub prefab: String,
+    pub nodes: HashMap<usize, InstanceNode>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Default)]
+pub struct InstanceNode {
+    pub node_index: usize,
+    pub node_id: NodeID,
+    pub overrides: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InstanceID(usize);
+
+impl InstanceID {
+    pub fn new(id: usize) -> Self {
+        Self(id)
+    }
+}
+
+impl std::fmt::Display for InstanceID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NodeID(usize);
+
+impl NodeID {
+    pub fn new(id: usize) -> Self {
+        Self(id)
+    }
+}
+
+impl std::fmt::Display for NodeID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 pub struct Prefab {

@@ -1,15 +1,17 @@
 use std::ops::Mul;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct GLTFAsset {
     pub path: String,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Transform {
+    #[serde(default)]
     pub position: glam::Vec3,
+    #[serde(default = "default_scale")]
     pub scale: glam::Vec3,
     pub rotation: glam::Quat,
 }
@@ -18,10 +20,14 @@ impl Default for Transform {
     fn default() -> Self {
         Self {
             position: glam::Vec3::ZERO,
-            scale: glam::Vec3::ONE,
+            scale: default_scale(),
             rotation: glam::Quat::IDENTITY,
         }
     }
+}
+
+const fn default_scale() -> glam::Vec3 {
+    glam::Vec3::ONE
 }
 
 impl Transform {
