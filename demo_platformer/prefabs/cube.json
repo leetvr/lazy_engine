@@ -1,0 +1,8 @@
+{
+  "name": "root",
+  "components": {
+    "GLTFAsset": {
+      "path": "assets/cube.glb"
+    }
+  }
+}

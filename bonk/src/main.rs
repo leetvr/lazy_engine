@@ -1,121 +1,18 @@
-use std::sync::Arc;
+mod gui;
+mod yakui_renderer;
 
-use lazy_vulkan::{LazyVulkan, SubRenderer, ash::vk};
+use std::collections::HashMap;
+
+use component_registry::ComponentRegistry;
+use engine_types::{Prefab, PrefabDefinition, Scene};
+use lazy_vulkan::{LazyVulkan, SubRenderer};
 use winit::window::WindowAttributes;
 
-struct YakuiRenderer {
-    yakui_vulkan: yakui_vulkan::YakuiVulkan,
-    // Because we do some more involved transfer operations, we need to stash a context reference
-    context: Arc<lazy_vulkan::Context>,
-}
+use crate::{gui::draw_gui, yakui_renderer::YakuiRenderer};
 
-impl YakuiRenderer {
-    pub fn new<'a>(
-        context: Arc<lazy_vulkan::Context>,
-        image_format: vk::Format,
-        yak: &'a mut yakui::Yakui,
-    ) -> Box<dyn SubRenderer<State = RenderState>> {
-        // Get our yakui vulkan businesss together
-        let vulkan_context = &ctx(&context);
-        let mut yakui_vulkan = yakui_vulkan::YakuiVulkan::new(
-            vulkan_context,
-            yakui_vulkan::Options {
-                dynamic_rendering_format: Some(image_format),
-                render_pass: vk::RenderPass::null(),
-                subpass: 0,
-            },
-        );
-
-        yakui_vulkan.transfers_submitted();
-        yakui_vulkan.set_paint_limits(vulkan_context, yak);
-
-        Box::new(Self {
-            yakui_vulkan,
-            context,
-        })
-    }
-}
-
-#[derive(Debug)]
-struct RenderState {
-    yak: yakui::Yakui,
-}
-
-impl SubRenderer for YakuiRenderer {
-    type State = RenderState;
-
-    fn stage_transfers(&mut self, render_state: &Self::State, _: &mut lazy_vulkan::Allocator) {
-        let vulkan_context = &ctx(&self.context);
-
-        // You *MUST* have called `yak.paint() this frame`
-        let paint = render_state.yak.paint_dom();
-
-        unsafe {
-            self.yakui_vulkan.transfers_finished(vulkan_context);
-            self.yakui_vulkan
-                .transfer(paint, vulkan_context, self.context.draw_command_buffer);
-        };
-    }
-
-    fn draw_layer(
-        &mut self,
-        render_state: &Self::State,
-        context: &lazy_vulkan::Context,
-        params: lazy_vulkan::DrawParams,
-    ) {
-        let vulkan_context = &ctx(&context);
-
-        // You *MUST* have called `yak.paint()` this frame
-        let paint = render_state.yak.paint_dom();
-
-        let device = &context.device;
-        let command_buffer = context.draw_command_buffer;
-
-        unsafe {
-            let render_area = params.drawable.extent;
-            context.cmd_begin_rendering(
-                command_buffer,
-                &vk::RenderingInfo::default()
-                    .render_area(render_area.into())
-                    .layer_count(1)
-                    .color_attachments(&[vk::RenderingAttachmentInfo::default()
-                        .image_view(params.drawable.view)
-                        .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-                        .load_op(vk::AttachmentLoadOp::CLEAR)
-                        .store_op(vk::AttachmentStoreOp::STORE)
-                        .clear_value(vk::ClearValue {
-                            color: vk::ClearColorValue {
-                                float32: [0.1, 0.1, 0.1, 1.0],
-                            },
-                        })]),
-            );
-
-            // Set the dynamic state
-            device.cmd_set_scissor(command_buffer, 0, &[render_area.into()]);
-            device.cmd_set_viewport(
-                command_buffer,
-                0,
-                &[vk::Viewport::default()
-                    .width(render_area.width as _)
-                    .height(render_area.height as _)
-                    .max_depth(1.)],
-            );
-
-            // Paint the GUI
-            self.yakui_vulkan.paint(
-                paint,
-                vulkan_context,
-                self.context.draw_command_buffer,
-                params.drawable.extent,
-            );
-            context.cmd_end_rendering(command_buffer);
-            self.yakui_vulkan.transfers_submitted();
-        };
-    }
-
-    fn label(&self) -> &'static str {
-        "YakuiRenderer"
-    }
+pub struct RenderState {
+    pub yak: yakui::Yakui,
+    pub world: hecs::World,
 }
 
 struct AppState {
@@ -124,11 +21,25 @@ struct AppState {
     sub_renderers: Vec<Box<dyn SubRenderer<State = RenderState>>>,
     yakui_winit: yakui_winit::YakuiWinit,
     render_state: RenderState,
+    loaded_prefabs: HashMap<String, Prefab>,
+    #[allow(unused)]
+    component_registry: ComponentRegistry,
+    scene: Scene,
 }
 
 #[derive(Default)]
 struct App {
     state: Option<AppState>,
+    project_path: String,
+}
+
+impl App {
+    fn new(project_path: String) -> Self {
+        Self {
+            state: None,
+            project_path,
+        }
+    }
 }
 
 impl winit::application::ApplicationHandler for App {
@@ -151,13 +62,21 @@ impl winit::application::ApplicationHandler for App {
         )];
 
         let yakui_winit = yakui_winit::YakuiWinit::new(&window);
+        let mut component_registry = get_component_registry();
+        let loaded_prefabs = load_prefabs(&self.project_path, &mut component_registry);
 
         self.state = Some(AppState {
             window,
             lazy_vulkan,
             sub_renderers,
             yakui_winit,
-            render_state: RenderState { yak },
+            render_state: RenderState {
+                yak,
+                world: Default::default(),
+            },
+            loaded_prefabs,
+            component_registry,
+            scene: Default::default(),
         })
     }
 
@@ -193,7 +112,7 @@ impl winit::application::ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
-                draw_gui(&mut state.render_state.yak);
+                draw_gui(state);
                 state
                     .lazy_vulkan
                     .draw(&state.render_state, &mut state.sub_renderers);
@@ -208,46 +127,76 @@ impl winit::application::ApplicationHandler for App {
     }
 }
 
-fn ctx<'a>(context: &'a lazy_vulkan::Context) -> yakui_vulkan::VulkanContext<'a> {
-    yakui_vulkan::VulkanContext {
-        device: &context.device,
-        queue: context.graphics_queue,
-        memory_properties: context.memory_properties,
-        properties: context.device_properties,
-    }
+fn get_component_registry() -> ComponentRegistry {
+    let mut registry = ComponentRegistry::default();
+    use engine_types::components::*;
+    registry.register_component::<GLTFAsset>();
+    registry.register_component::<Transform>();
+    registry
 }
 
-pub fn draw_gui(yak: &mut yakui::Yakui) -> &yakui::paint::PaintDom {
-    yak.start();
+fn load_prefabs(
+    project_path: &str,
+    component_registry: &mut ComponentRegistry,
+) -> HashMap<String, Prefab> {
+    let prefabs_path = std::path::Path::new(project_path).join("prefabs");
+    println!("Prefabs path: {:?}", prefabs_path);
+    let mut prefabs = HashMap::new();
 
-    use yakui::{Color, button, column, label, row, use_state, widgets::Text};
-    let clicked = use_state(|| false);
-    column(|| {
-        row(|| {
-            label("Hello, world!");
+    for entry in std::fs::read_dir(prefabs_path).unwrap() {
+        let entry = entry.unwrap();
+        println!("Prefab entry: {:?}", entry);
 
-            let mut text = Text::new(48.0, "colored text!");
-            text.style.color = Color::RED;
-            text.show();
+        // BLEGH
+        if !entry
+            .path()
+            .extension()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("json")
+        {
+            continue;
+        }
 
-            if button("click me!").clicked {
-                clicked.set(!clicked.get());
-            }
+        println!("yes?");
 
-            if clicked.get() {
-                label("I got clicked!");
-            }
-        });
-    });
+        // Blegh!
+        let file_name = entry
+            .path()
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
 
-    yak.finish();
-    yak.paint()
+        let reader = std::fs::File::open(entry.path()).unwrap();
+        let definition: PrefabDefinition = serde_json::from_reader(reader).unwrap();
+        let prefab = prefab_compiler::compile(&definition, component_registry);
+
+        prefabs.insert(file_name, prefab);
+    }
+
+    println!("loaded {} prefabs", prefabs.len());
+
+    prefabs
+}
+
+#[derive(clap::Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Name of the person to greet
+    #[arg(short, long, default_value = "./")]
+    project_path: String,
 }
 
 fn main() {
+    use clap::Parser;
+
+    let args = Args::parse();
     let event_loop = winit::event_loop::EventLoop::new().unwrap();
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-    let mut app = App::default();
+    let mut app = App::new(args.project_path);
 
     event_loop.run_app(&mut app).unwrap()
 }

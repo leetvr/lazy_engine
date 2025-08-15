@@ -1,4 +1,17 @@
+pub mod components;
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize, Clone, Default)]
+pub struct Scene {
+    pub prefabs: Vec<InstantiatedPrefab>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Default)]
+pub struct InstantiatedPrefab {
+    pub name: String,
+}
 
 pub struct Prefab {
     pub name: String,
