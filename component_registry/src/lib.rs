@@ -1,12 +1,25 @@
 use std::collections::HashMap;
 
+use engine_types::components::{GLTFAsset, Transform};
 use hecs::EntityBuilder;
 
 type DeserialiseFn = Box<dyn Fn(&mut EntityBuilder, serde_json::Value) + Send + Sync>;
 
-#[derive(Default)]
 pub struct ComponentRegistry {
     deserialisers: HashMap<String, DeserialiseFn>,
+}
+
+impl Default for ComponentRegistry {
+    fn default() -> Self {
+        let mut registry = ComponentRegistry {
+            deserialisers: Default::default(),
+        };
+
+        registry.register_component::<GLTFAsset>();
+        registry.register_component::<Transform>();
+
+        registry
+    }
 }
 
 impl ComponentRegistry {

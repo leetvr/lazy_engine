@@ -190,10 +190,8 @@ fn load_scene(
 }
 
 fn get_component_registry() -> ComponentRegistry {
-    let mut registry = ComponentRegistry::default();
-    use engine_types::components::*;
-    registry.register_component::<GLTFAsset>();
-    registry.register_component::<Transform>();
+    let registry = ComponentRegistry::default();
+    // TODO: Register user components
     registry
 }
 

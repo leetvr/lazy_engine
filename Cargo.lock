@@ -441,6 +441,7 @@ dependencies = [
 name = "component_registry"
 version = "0.1.0"
 dependencies = [
+ "engine_types",
  "hecs",
  "serde",
  "serde_json",
