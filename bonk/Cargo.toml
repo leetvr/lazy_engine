@@ -8,10 +8,13 @@ prefab_compiler.path = "../prefab_compiler"
 component_registry.path = "../component_registry"
 engine_types.path = "../engine_types"
 
+bytemuck.workspace = true
 hecs.workspace = true
+glam.workspace = true
 serde_json.workspace = true
 clap.workspace = true
 lazy_vulkan.workspace = true
+lazy_vulkan_gltf.workspace = true
 winit.workspace = true
 yakui.workspace = true
 yakui-vulkan.workspace = true

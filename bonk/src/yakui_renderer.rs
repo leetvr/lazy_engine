@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
-use lazy_vulkan::{SubRenderer, ash::vk};
-
 use crate::RenderState;
+use lazy_vulkan::{ImageManager, SubRenderer, ash::vk};
+use std::sync::Arc;
 
 pub struct YakuiRenderer {
     yakui_vulkan: yakui_vulkan::YakuiVulkan,
@@ -40,7 +38,12 @@ impl YakuiRenderer {
 impl SubRenderer for YakuiRenderer {
     type State = RenderState;
 
-    fn stage_transfers(&mut self, render_state: &Self::State, _: &mut lazy_vulkan::Allocator) {
+    fn stage_transfers(
+        &mut self,
+        render_state: &Self::State,
+        _: &mut lazy_vulkan::Allocator,
+        _: &mut ImageManager,
+    ) {
         let vulkan_context = &ctx(&self.context);
 
         // You *MUST* have called `yak.paint() this frame`
@@ -77,13 +80,8 @@ impl SubRenderer for YakuiRenderer {
                     .color_attachments(&[vk::RenderingAttachmentInfo::default()
                         .image_view(params.drawable.view)
                         .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-                        .load_op(vk::AttachmentLoadOp::CLEAR)
-                        .store_op(vk::AttachmentStoreOp::STORE)
-                        .clear_value(vk::ClearValue {
-                            color: vk::ClearColorValue {
-                                float32: [0.1, 0.1, 0.1, 1.0],
-                            },
-                        })]),
+                        .load_op(vk::AttachmentLoadOp::DONT_CARE)
+                        .store_op(vk::AttachmentStoreOp::STORE)]),
             );
 
             // Set the dynamic state

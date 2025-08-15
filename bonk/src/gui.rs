@@ -1,6 +1,5 @@
-use engine_types::{InstantiatedPrefab, Prefab, Scene};
-
 use crate::AppState;
+use engine_types::{InstantiatedPrefab, Prefab, Scene, components::Transform};
 
 pub fn draw_gui(state: &mut AppState) {
     use yakui::{
@@ -48,7 +47,8 @@ pub fn draw_gui(state: &mut AppState) {
 
 fn spawn_prefab(name: &str, prefab: &mut Prefab, scene: &mut Scene, world: &mut hecs::World) {
     for node in &mut prefab.nodes {
-        world.spawn(node.builder.build());
+        let entity = world.spawn(node.builder.build());
+        world.insert_one(entity, Transform::default()).unwrap();
     }
 
     scene.prefabs.push(InstantiatedPrefab {

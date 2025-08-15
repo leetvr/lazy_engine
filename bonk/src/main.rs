@@ -1,14 +1,12 @@
 mod gui;
+mod scene_renderer;
 mod yakui_renderer;
-
-use std::collections::HashMap;
-
+use crate::{gui::draw_gui, scene_renderer::SceneRenderer, yakui_renderer::YakuiRenderer};
 use component_registry::ComponentRegistry;
 use engine_types::{Prefab, PrefabDefinition, Scene};
 use lazy_vulkan::{LazyVulkan, SubRenderer};
+use std::{collections::HashMap, path::Path};
 use winit::window::WindowAttributes;
-
-use crate::{gui::draw_gui, yakui_renderer::YakuiRenderer};
 
 pub struct RenderState {
     pub yak: yakui::Yakui,
@@ -52,14 +50,19 @@ impl winit::application::ApplicationHandler for App {
             )
             .unwrap();
 
-        let lazy_vulkan = lazy_vulkan::LazyVulkan::from_window(&window);
+        let mut lazy_vulkan = lazy_vulkan::LazyVulkan::from_window(&window);
         let mut yak = yakui::Yakui::new();
 
-        let sub_renderers = vec![YakuiRenderer::new(
-            lazy_vulkan.context.clone(),
-            lazy_vulkan.renderer.get_drawable_format(),
-            &mut yak,
-        )];
+        let asset_path = Path::new(&self.project_path).join("assets");
+
+        let sub_renderers = vec![
+            SceneRenderer::new(&mut lazy_vulkan, asset_path),
+            YakuiRenderer::new(
+                lazy_vulkan.context.clone(),
+                lazy_vulkan.renderer.get_drawable_format(),
+                &mut yak,
+            ),
+        ];
 
         let yakui_winit = yakui_winit::YakuiWinit::new(&window);
         let mut component_registry = get_component_registry();
@@ -194,6 +197,7 @@ fn main() {
     use clap::Parser;
 
     let args = Args::parse();
+    scene_renderer::compile_shaders();
     let event_loop = winit::event_loop::EventLoop::new().unwrap();
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
     let mut app = App::new(args.project_path);
