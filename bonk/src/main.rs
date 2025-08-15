@@ -1,16 +1,22 @@
 mod gui;
 mod scene_renderer;
 mod yakui_renderer;
-use crate::{
-    gui::{draw_gui, spawn_entity_for_node},
-    scene_renderer::SceneRenderer,
-    yakui_renderer::YakuiRenderer,
-};
+use crate::{gui::draw_gui, scene_renderer::SceneRenderer, yakui_renderer::YakuiRenderer};
 use component_registry::ComponentRegistry;
-use engine_types::{NodeID, Prefab, PrefabDefinition, Scene};
+use engine_types::PrefabInstance;
+use engine_types::{
+    InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition, Scene, components::Transform,
+};
 use hecs::Entity;
 use lazy_vulkan::{LazyVulkan, SubRenderer};
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{
+        LazyLock,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 use winit::window::WindowAttributes;
 
 pub struct RenderState {
@@ -147,6 +153,9 @@ fn load_scene(
     loaded_prefabs: &mut HashMap<String, Prefab>,
     component_registry: &ComponentRegistry,
 ) -> (Scene, hecs::World, HashMap<NodeID, Entity>) {
+    let mut world = hecs::World::new();
+    let mut node_entity_map = HashMap::new();
+
     if !path.exists() {
         println!("trying to read {path:?}");
         std::fs::write(
@@ -154,14 +163,13 @@ fn load_scene(
             serde_json::to_string_pretty(&Scene::default()).unwrap(),
         )
         .unwrap();
+
+        return (Scene::default(), world, node_entity_map);
     }
 
     let scene: Scene =
         serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(path).unwrap()))
             .unwrap();
-
-    let mut world = hecs::World::new();
-    let mut node_entity_map = HashMap::new();
 
     // Walk through each instance and spawn entities for each node
     for instance in &scene.instances {
@@ -173,7 +181,7 @@ fn load_scene(
             let entity = spawn_entity_for_node(&mut world, node);
             node_entity_map.insert(instance_node.node_id, entity);
 
-            let mut entity_builder = hecs::EntityBuilder::new();
+            let mut entity_builder = hecs::EntityBuilderClone::new();
             for (component_name, component) in &instance_node.overrides {
                 component_registry.add_component_to_builder(
                     component_name,
@@ -182,9 +190,24 @@ fn load_scene(
                 );
             }
 
-            world.insert(entity, entity_builder.build()).unwrap()
+            world.insert(entity, &entity_builder.build()).unwrap();
+
+            // IMPORTANT: reset our IDs
+            NEXT_NODE_ID.fetch_max(instance_node.node_id.as_raw(), Ordering::Relaxed);
         }
+
+        // IMPORTANT: reset our IDs
+        NEXT_INSTANCE_ID.fetch_max(instance.instance_id.as_raw(), Ordering::Relaxed);
     }
+
+    NEXT_NODE_ID.fetch_add(1, Ordering::Relaxed);
+    NEXT_INSTANCE_ID.fetch_add(1, Ordering::Relaxed);
+
+    println!("next_node_id: {}", NEXT_NODE_ID.load(Ordering::Relaxed));
+    println!(
+        "next_instance_id_id: {}",
+        NEXT_INSTANCE_ID.load(Ordering::Relaxed)
+    );
 
     (scene, world, node_entity_map)
 }
@@ -194,6 +217,54 @@ fn get_component_registry() -> ComponentRegistry {
     // TODO: Register user components
     registry
 }
+
+fn spawn_prefab(
+    name: &str,
+    prefab: &mut Prefab,
+    scene: &mut Scene,
+    world: &mut hecs::World,
+    node_entity_map: &mut HashMap<NodeID, Entity>,
+) {
+    let mut nodes = HashMap::new();
+    for node in &mut prefab.nodes {
+        let node_id = next_node_id();
+        let entity = spawn_entity_for_node(world, node);
+        node_entity_map.insert(node_id, entity);
+
+        nodes.insert(
+            node.index,
+            InstanceNode {
+                node_index: node.index,
+                node_id,
+                overrides: Default::default(),
+            },
+        );
+    }
+
+    let instance_id = NEXT_INSTANCE_ID.fetch_add(1, Ordering::Relaxed);
+
+    scene.instances.push(PrefabInstance {
+        instance_id: InstanceID::new(instance_id),
+        prefab: name.to_string(),
+        nodes,
+    })
+}
+
+pub fn spawn_entity_for_node(
+    world: &mut hecs::World,
+    node: &mut engine_types::PrefabNode,
+) -> Entity {
+    let entity = world.spawn(&node.builder);
+    world.insert_one(entity, Transform::default()).unwrap();
+    entity
+}
+
+fn next_node_id() -> NodeID {
+    NodeID::new(NEXT_NODE_ID.fetch_add(1, Ordering::Relaxed))
+}
+
+static NEXT_INSTANCE_ID: LazyLock<AtomicUsize> = LazyLock::new(|| AtomicUsize::new(0));
+static NEXT_NODE_ID: LazyLock<AtomicUsize> = LazyLock::new(|| AtomicUsize::new(0));
 
 fn load_prefabs(
     prefabs_path: PathBuf,
@@ -244,7 +315,7 @@ fn load_prefabs(
 #[derive(clap::Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Name of the person to greet
+    /// Path to the project
     #[arg(short, long, default_value = "./")]
     project_path: String,
 }

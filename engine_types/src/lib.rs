@@ -37,12 +37,24 @@ impl std::fmt::Display for InstanceID {
     }
 }
 
+impl InstanceID {
+    pub fn as_raw(&self) -> usize {
+        self.0
+    }
+}
+
 #[derive(Deserialize, Serialize, Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeID(usize);
 
 impl NodeID {
     pub fn new(id: usize) -> Self {
         Self(id)
+    }
+}
+
+impl NodeID {
+    pub fn as_raw(&self) -> usize {
+        self.0
     }
 }
 
@@ -60,7 +72,7 @@ pub struct Prefab {
 pub struct PrefabNode {
     pub name: String,
     pub index: usize,
-    pub builder: hecs::EntityBuilder,
+    pub builder: hecs::BuiltEntityClone,
     pub parent: Option<usize>,
 }
 

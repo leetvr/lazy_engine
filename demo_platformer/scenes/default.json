@@ -10,7 +10,67 @@
           "overrides": {
             "Transform": {
               "position": [
-                2.600000000000001,
+                0.2,
+                0.0,
+                0.0
+              ],
+              "rotation": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "scale": [
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "instance_id": 1,
+      "prefab": "cube",
+      "nodes": {
+        "0": {
+          "node_index": 0,
+          "node_id": 1,
+          "overrides": {
+            "Transform": {
+              "position": [
+                2.500000000000001,
+                0.0,
+                0.0
+              ],
+              "rotation": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "scale": [
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "instance_id": 2,
+      "prefab": "cube",
+      "nodes": {
+        "0": {
+          "node_index": 0,
+          "node_id": 2,
+          "overrides": {
+            "Transform": {
+              "position": [
+                4.799999999999999,
                 0.0,
                 0.0
               ],

@@ -1,6 +1,6 @@
 use component_registry::ComponentRegistry;
 use engine_types::{Prefab, PrefabDefinition, PrefabNode};
-use hecs::EntityBuilder;
+use hecs::EntityBuilderClone;
 
 pub fn compile(definition: &PrefabDefinition, component_registry: &ComponentRegistry) -> Prefab {
     let mut nodes = Vec::new();
@@ -21,7 +21,7 @@ fn compile_node(
     let mut children = Vec::new();
     let my_index = nodes.len();
 
-    let mut entity_builder = EntityBuilder::new();
+    let mut entity_builder = EntityBuilderClone::new();
     for (component_name, component) in &definition.components {
         component_registry.add_component_to_builder(
             component_name,
@@ -33,7 +33,7 @@ fn compile_node(
     let node = PrefabNode {
         name: definition.name.clone(),
         index: my_index,
-        builder: entity_builder,
+        builder: entity_builder.build(),
         parent,
     };
     nodes.push(node);
@@ -96,7 +96,7 @@ mod tests {
 
         let mut world = hecs::World::new();
         for node in &mut prefab.nodes {
-            let entity = world.spawn(node.builder.build());
+            let entity = world.spawn(&node.builder);
             let first = world.get::<&FirstComponent>(entity).unwrap();
             let next = world.get::<&NextComponent>(entity).unwrap();
 

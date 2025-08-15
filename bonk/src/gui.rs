@@ -1,17 +1,7 @@
-use std::{
-    collections::HashMap,
-    path::Path,
-    sync::{
-        LazyLock,
-        atomic::{AtomicUsize, Ordering},
-    },
-};
-
-use crate::AppState;
-use engine_types::{
-    InstanceID, InstanceNode, NodeID, Prefab, PrefabInstance, Scene, components::Transform,
-};
+use crate::{AppState, spawn_prefab};
+use engine_types::{NodeID, PrefabInstance, components::Transform};
 use hecs::Entity;
+use std::{collections::HashMap, path::Path};
 
 pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
     use yakui::{
@@ -130,51 +120,3 @@ fn nudge(
         .position
         .x = next_x as f32;
 }
-
-fn spawn_prefab(
-    name: &str,
-    prefab: &mut Prefab,
-    scene: &mut Scene,
-    world: &mut hecs::World,
-    node_entity_map: &mut HashMap<NodeID, Entity>,
-) {
-    let mut nodes = HashMap::new();
-    for node in &mut prefab.nodes {
-        let node_id = next_node_id();
-        let entity = spawn_entity_for_node(world, node);
-        node_entity_map.insert(node_id, entity);
-
-        nodes.insert(
-            node.index,
-            InstanceNode {
-                node_index: node.index,
-                node_id,
-                overrides: Default::default(),
-            },
-        );
-    }
-
-    let instance_id = NEXT_INSTANCE_ID.fetch_add(1, Ordering::Relaxed);
-
-    scene.instances.push(PrefabInstance {
-        instance_id: InstanceID::new(instance_id),
-        prefab: name.to_string(),
-        nodes,
-    })
-}
-
-pub fn spawn_entity_for_node(
-    world: &mut hecs::World,
-    node: &mut engine_types::PrefabNode,
-) -> Entity {
-    let entity = world.spawn(node.builder.build());
-    world.insert_one(entity, Transform::default()).unwrap();
-    entity
-}
-
-fn next_node_id() -> NodeID {
-    NodeID::new(NEXT_NODE_ID.fetch_add(1, Ordering::Relaxed))
-}
-
-static NEXT_INSTANCE_ID: LazyLock<AtomicUsize> = LazyLock::new(|| AtomicUsize::new(0));
-static NEXT_NODE_ID: LazyLock<AtomicUsize> = LazyLock::new(|| AtomicUsize::new(0));
