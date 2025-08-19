@@ -3,6 +3,7 @@ mod scene_renderer;
 mod yakui_renderer;
 use crate::{gui::draw_gui, scene_renderer::SceneRenderer, yakui_renderer::YakuiRenderer};
 use component_registry::ComponentRegistry;
+use engine::Engine;
 use engine_types::PrefabInstance;
 use engine_types::{
     InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition, Scene, components::Transform,
@@ -17,11 +18,16 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
+use system_loader::GameplayLib;
 use winit::window::WindowAttributes;
+
+static GAMEPLAY_LIB_PATH: &'static str = "target/debug";
+static GAMEPLAY_LIB_NAME: &str = "demo_platformer";
 
 pub struct RenderState {
     pub yak: yakui::Yakui,
     pub world: hecs::World,
+    pub herps: usize,
 }
 
 struct AppState {
@@ -35,6 +41,9 @@ struct AppState {
     component_registry: ComponentRegistry,
     scene: Scene,
     node_entity_map: HashMap<NodeID, Entity>,
+    engine: Engine,
+    #[allow(unused)]
+    gameplay: GameplayLib,
 }
 
 #[derive(Default)]
@@ -87,16 +96,28 @@ impl winit::application::ApplicationHandler for App {
             &component_registry,
         );
 
+        let mut engine = Engine::new();
+        let gameplay_code = unsafe {
+            system_loader::GameplayLib::load(GAMEPLAY_LIB_PATH, GAMEPLAY_LIB_NAME, &mut engine)
+        }
+        .unwrap();
+
         self.state = Some(AppState {
             window,
             lazy_vulkan,
             sub_renderers,
             yakui_winit,
-            render_state: RenderState { yak, world },
+            render_state: RenderState {
+                yak,
+                world,
+                herps: 0,
+            },
             loaded_prefabs,
             component_registry,
             scene,
             node_entity_map,
+            engine,
+            gameplay: gameplay_code,
         })
     }
 
@@ -132,6 +153,8 @@ impl winit::application::ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
+                state.engine.tick();
+                state.render_state.herps = *state.engine.get_state::<usize>().unwrap();
                 let scene_path = self.project_path.join("scenes").join("default.json");
                 draw_gui(state, &scene_path);
                 state
@@ -140,6 +163,8 @@ impl winit::application::ApplicationHandler for App {
             }
             _ => {}
         }
+
+        unsafe { state.gameplay.check_reload(&mut state.engine).unwrap() };
     }
 
     fn about_to_wait(&mut self, _: &winit::event_loop::ActiveEventLoop) {
@@ -157,7 +182,7 @@ fn load_scene(
     let mut node_entity_map = HashMap::new();
 
     if !path.exists() {
-        println!("trying to read {path:?}");
+        log::info!("Trying to read scene from {path:?}");
         std::fs::write(
             path,
             serde_json::to_string_pretty(&Scene::default()).unwrap(),
@@ -202,12 +227,6 @@ fn load_scene(
 
     NEXT_NODE_ID.fetch_add(1, Ordering::Relaxed);
     NEXT_INSTANCE_ID.fetch_add(1, Ordering::Relaxed);
-
-    println!("next_node_id: {}", NEXT_NODE_ID.load(Ordering::Relaxed));
-    println!(
-        "next_instance_id_id: {}",
-        NEXT_INSTANCE_ID.load(Ordering::Relaxed)
-    );
 
     (scene, world, node_entity_map)
 }
@@ -270,12 +289,11 @@ fn load_prefabs(
     prefabs_path: PathBuf,
     component_registry: &mut ComponentRegistry,
 ) -> HashMap<String, Prefab> {
-    println!("Prefabs path: {:?}", prefabs_path);
+    log::info!("Loading prefabs from path: {:?}", prefabs_path);
     let mut prefabs = HashMap::new();
 
     for entry in std::fs::read_dir(prefabs_path).unwrap() {
         let entry = entry.unwrap();
-        println!("Prefab entry: {:?}", entry);
 
         // BLEGH
         if !entry
@@ -288,8 +306,6 @@ fn load_prefabs(
         {
             continue;
         }
-
-        println!("yes?");
 
         // Blegh!
         let file_name = entry
@@ -307,7 +323,7 @@ fn load_prefabs(
         prefabs.insert(file_name, prefab);
     }
 
-    println!("loaded {} prefabs", prefabs.len());
+    log::info!("Successfully loaded {} prefabs!", prefabs.len());
 
     prefabs
 }
@@ -321,8 +337,10 @@ struct Args {
 }
 
 fn main() {
+    env_logger::init();
+    log::info!("::BONK SYSTEMS ONLINE::");
+    log::info!("::READY TO BONK::");
     use clap::Parser;
-
     let args = Args::parse();
     scene_renderer::compile_shaders();
     let event_loop = winit::event_loop::EventLoop::new().unwrap();

@@ -63,6 +63,7 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
                         scene_dirty = true;
                     }
                 }
+                text(40., format!("Herps: {}", state.render_state.herps));
             });
         });
         spacer(1);

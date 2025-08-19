@@ -1,13 +1,11 @@
 [package]
-name = "demo_platformer"
+name = "system_loader"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-engine.path = "../engine"
-
+libloading.workspace = true
 anyhow.workspace = true
 log.workspace = true
 
-[lib]
-crate-type = ["cdylib"]
+engine.path = "../engine"
