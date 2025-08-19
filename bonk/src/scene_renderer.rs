@@ -53,7 +53,7 @@ impl SubRenderer for SceneRenderer {
             }
 
             let path = self.asset_path.join(&asset.path);
-            println!("Asset {key} has not been loaded, trying to load at {path:?}..");
+            log::debug!("Asset {key} has not been loaded, trying to load at {path:?}..");
             let loaded = lazy_vulkan_gltf::load_asset(
                 path,
                 allocator,
@@ -63,7 +63,7 @@ impl SubRenderer for SceneRenderer {
             .unwrap();
 
             self.assets.insert(key.clone(), loaded);
-            println!("Done! Asset [{key}] loaded");
+            log::debug!("Done! Asset [{key}] loaded");
         }
     }
 
@@ -113,7 +113,7 @@ impl SubRenderer for SceneRenderer {
 
         for (_, (asset, transform)) in world.query::<(&GLTFAsset, &Transform)>().iter() {
             let Some(asset) = self.assets.get(&asset.path) else {
-                println!("Asset {:?} does not exist yet", &asset.path);
+                log::debug!("Asset {:?} does not exist yet", &asset.path);
                 continue;
             };
 

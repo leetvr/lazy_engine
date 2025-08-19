@@ -4,11 +4,14 @@ use std::{
     ffi::CStr,
 };
 
+use hecs::CommandBuffer;
+
 type StateMap = HashMap<TypeId, Box<dyn Any>>;
 
 pub struct Engine {
     systems: HashMap<String, SystemFn>,
     state: StateManager,
+    world: hecs::World,
 }
 
 pub const VERSION: &str = git_version::git_version!();
@@ -16,6 +19,8 @@ pub type SystemFn = fn(&mut TickData) -> anyhow::Result<()>;
 
 pub struct TickData<'a> {
     pub dt: f32,
+    pub command_buffer: CommandBuffer,
+    pub world: &'a hecs::World,
     state: &'a mut StateManager,
 }
 
@@ -36,6 +41,7 @@ impl Engine {
         Engine {
             systems: Default::default(),
             state: Default::default(),
+            world: Default::default(),
         }
     }
 
@@ -54,9 +60,12 @@ impl Engine {
     }
 
     pub fn tick(&mut self) {
+        let command_buffer = CommandBuffer::new();
         let mut tick_data = TickData {
             dt: 0.,
             state: &mut self.state,
+            world: &self.world,
+            command_buffer,
         };
 
         for (system_name, system) in &mut self.systems {
@@ -67,10 +76,20 @@ impl Engine {
             }
             log::trace!("[{system_name}] system complete");
         }
+
+        tick_data.command_buffer.run_on(&mut self.world);
     }
 
     pub fn insert_state<S: 'static>(&mut self, state: S) {
         self.state.insert_state(state);
+    }
+
+    pub fn get_state<S: 'static>(&mut self) -> Result<&mut S, EngineError> {
+        self.state.get_state()
+    }
+
+    pub fn world_mut(&mut self) -> &mut hecs::World {
+        &mut self.world
     }
 }
 

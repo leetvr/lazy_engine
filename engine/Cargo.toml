@@ -7,3 +7,4 @@ edition = "2024"
 anyhow.workspace = true
 git-version.workspace = true
 log.workspace = true
+hecs.workspace = true

@@ -21,9 +21,13 @@ use std::{
 use system_loader::GameplayLib;
 use winit::window::WindowAttributes;
 
+static GAMEPLAY_LIB_PATH: &'static str = "target/debug";
+static GAMEPLAY_LIB_NAME: &str = "demo_platformer";
+
 pub struct RenderState {
     pub yak: yakui::Yakui,
     pub world: hecs::World,
+    pub herps: usize,
 }
 
 struct AppState {
@@ -94,7 +98,7 @@ impl winit::application::ApplicationHandler for App {
 
         let mut engine = Engine::new();
         let gameplay_code = unsafe {
-            system_loader::GameplayLib::load("target/debug", "demo_platformer", &mut engine)
+            system_loader::GameplayLib::load(GAMEPLAY_LIB_PATH, GAMEPLAY_LIB_NAME, &mut engine)
         }
         .unwrap();
 
@@ -103,7 +107,11 @@ impl winit::application::ApplicationHandler for App {
             lazy_vulkan,
             sub_renderers,
             yakui_winit,
-            render_state: RenderState { yak, world },
+            render_state: RenderState {
+                yak,
+                world,
+                herps: 0,
+            },
             loaded_prefabs,
             component_registry,
             scene,
@@ -146,6 +154,7 @@ impl winit::application::ApplicationHandler for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 state.engine.tick();
+                state.render_state.herps = *state.engine.get_state::<usize>().unwrap();
                 let scene_path = self.project_path.join("scenes").join("default.json");
                 draw_gui(state, &scene_path);
                 state
@@ -154,6 +163,8 @@ impl winit::application::ApplicationHandler for App {
             }
             _ => {}
         }
+
+        unsafe { state.gameplay.check_reload(&mut state.engine).unwrap() };
     }
 
     fn about_to_wait(&mut self, _: &winit::event_loop::ActiveEventLoop) {
@@ -171,7 +182,7 @@ fn load_scene(
     let mut node_entity_map = HashMap::new();
 
     if !path.exists() {
-        println!("trying to read {path:?}");
+        log::info!("Trying to read scene from {path:?}");
         std::fs::write(
             path,
             serde_json::to_string_pretty(&Scene::default()).unwrap(),
@@ -216,12 +227,6 @@ fn load_scene(
 
     NEXT_NODE_ID.fetch_add(1, Ordering::Relaxed);
     NEXT_INSTANCE_ID.fetch_add(1, Ordering::Relaxed);
-
-    println!("next_node_id: {}", NEXT_NODE_ID.load(Ordering::Relaxed));
-    println!(
-        "next_instance_id_id: {}",
-        NEXT_INSTANCE_ID.load(Ordering::Relaxed)
-    );
 
     (scene, world, node_entity_map)
 }
@@ -284,12 +289,11 @@ fn load_prefabs(
     prefabs_path: PathBuf,
     component_registry: &mut ComponentRegistry,
 ) -> HashMap<String, Prefab> {
-    println!("Prefabs path: {:?}", prefabs_path);
+    log::info!("Loading prefabs from path: {:?}", prefabs_path);
     let mut prefabs = HashMap::new();
 
     for entry in std::fs::read_dir(prefabs_path).unwrap() {
         let entry = entry.unwrap();
-        println!("Prefab entry: {:?}", entry);
 
         // BLEGH
         if !entry
@@ -302,8 +306,6 @@ fn load_prefabs(
         {
             continue;
         }
-
-        println!("yes?");
 
         // Blegh!
         let file_name = entry
@@ -321,7 +323,7 @@ fn load_prefabs(
         prefabs.insert(file_name, prefab);
     }
 
-    println!("loaded {} prefabs", prefabs.len());
+    log::info!("Successfully loaded {} prefabs!", prefabs.len());
 
     prefabs
 }

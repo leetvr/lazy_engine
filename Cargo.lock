@@ -611,6 +611,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "git-version",
+ "hecs",
  "log",
 ]
 
@@ -2050,6 +2051,7 @@ dependencies = [
  "anyhow",
  "engine",
  "libloading",
+ "log",
 ]
 
 [[package]]

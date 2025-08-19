@@ -6,4 +6,6 @@ edition = "2024"
 [dependencies]
 libloading.workspace = true
 anyhow.workspace = true
+log.workspace = true
+
 engine.path = "../engine"
