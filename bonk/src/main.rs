@@ -9,7 +9,7 @@ use engine_types::{
     InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition, Scene, components::Transform,
 };
 use hecs::Entity;
-use lazy_vulkan::{LazyVulkan, SubRenderer};
+use lazy_vulkan::{LazyVulkan, StateFamily};
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -24,18 +24,21 @@ use winit::window::WindowAttributes;
 static GAMEPLAY_LIB_PATH: &'static str = "target/debug";
 static GAMEPLAY_LIB_NAME: &str = "demo_platformer";
 
-pub struct RenderState {
-    pub yak: yakui::Yakui,
-    pub world: hecs::World,
+pub struct RenderStateFamily;
+impl StateFamily for RenderStateFamily {
+    type For<'s> = RenderState<'s>;
+}
+
+pub struct RenderState<'s> {
+    pub yak: &'s yakui::Yakui,
+    pub world: &'s hecs::World,
     pub herps: usize,
 }
 
 struct AppState {
     window: winit::window::Window,
-    lazy_vulkan: LazyVulkan,
-    sub_renderers: Vec<Box<dyn SubRenderer<State = RenderState>>>,
+    lazy_vulkan: LazyVulkan<RenderStateFamily>,
     yakui_winit: yakui_winit::YakuiWinit,
-    render_state: RenderState,
     loaded_prefabs: HashMap<String, Prefab>,
     #[allow(unused)]
     component_registry: ComponentRegistry,
@@ -44,6 +47,7 @@ struct AppState {
     engine: Engine,
     #[allow(unused)]
     gameplay: GameplayLib,
+    yak: yakui::Yakui,
 }
 
 #[derive(Default)]
@@ -76,27 +80,29 @@ impl winit::application::ApplicationHandler for App {
 
         let asset_path = self.project_path.join("assets");
 
-        let sub_renderers = vec![
-            SceneRenderer::new(&mut lazy_vulkan, asset_path),
-            YakuiRenderer::new(
-                lazy_vulkan.context.clone(),
-                lazy_vulkan.renderer.get_drawable_format(),
-                &mut yak,
-            ),
-        ];
+        let scene_renderer = Box::new(SceneRenderer::new(&mut lazy_vulkan, asset_path));
+        lazy_vulkan.add_sub_renderer(scene_renderer);
+
+        let yakui_renderer = Box::new(YakuiRenderer::new(
+            lazy_vulkan.context.clone(),
+            lazy_vulkan.renderer.get_drawable_format(),
+            &mut yak,
+        ));
+        lazy_vulkan.add_sub_renderer(yakui_renderer);
 
         let yakui_winit = yakui_winit::YakuiWinit::new(&window);
         let mut component_registry = get_component_registry();
         let mut loaded_prefabs =
             load_prefabs(self.project_path.join("prefabs"), &mut component_registry);
 
-        let (scene, world, node_entity_map) = load_scene(
+        let mut engine = Engine::new();
+        let (scene, node_entity_map) = load_scene(
             &self.project_path.join("scenes").join("default.json"),
             &mut loaded_prefabs,
             &component_registry,
+            engine.world_mut(),
         );
 
-        let mut engine = Engine::new();
         let gameplay_code = unsafe {
             system_loader::GameplayLib::load(GAMEPLAY_LIB_PATH, GAMEPLAY_LIB_NAME, &mut engine)
         }
@@ -105,19 +111,14 @@ impl winit::application::ApplicationHandler for App {
         self.state = Some(AppState {
             window,
             lazy_vulkan,
-            sub_renderers,
             yakui_winit,
-            render_state: RenderState {
-                yak,
-                world,
-                herps: 0,
-            },
             loaded_prefabs,
             component_registry,
             scene,
             node_entity_map,
             engine,
             gameplay: gameplay_code,
+            yak,
         })
     }
 
@@ -135,7 +136,7 @@ impl winit::application::ApplicationHandler for App {
         if let WindowEvent::Resized(size) = event {
             state
                 .yakui_winit
-                .handle_window_event(&mut state.render_state.yak, &event);
+                .handle_window_event(&mut state.yak, &event);
 
             state.lazy_vulkan.resize(size.width, size.height);
             return;
@@ -144,7 +145,7 @@ impl winit::application::ApplicationHandler for App {
         // Next, we hand the event to yakui-winit to see if it wants it
         if state
             .yakui_winit
-            .handle_window_event(&mut state.render_state.yak, &event)
+            .handle_window_event(&mut state.yak, &event)
         {
             return;
         }
@@ -154,12 +155,14 @@ impl winit::application::ApplicationHandler for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 state.engine.tick();
-                state.render_state.herps = *state.engine.get_state::<usize>().unwrap();
+                let herps = *state.engine.get_state::<usize>().unwrap();
                 let scene_path = self.project_path.join("scenes").join("default.json");
-                draw_gui(state, &scene_path);
-                state
-                    .lazy_vulkan
-                    .draw(&state.render_state, &mut state.sub_renderers);
+                draw_gui(state, &scene_path, herps);
+                state.lazy_vulkan.draw(&RenderState {
+                    yak: &state.yak,
+                    world: state.engine.world_mut(),
+                    herps,
+                });
             }
             _ => {}
         }
@@ -177,8 +180,8 @@ fn load_scene(
     path: &PathBuf,
     loaded_prefabs: &mut HashMap<String, Prefab>,
     component_registry: &ComponentRegistry,
-) -> (Scene, hecs::World, HashMap<NodeID, Entity>) {
-    let mut world = hecs::World::new();
+    world: &mut hecs::World,
+) -> (Scene, HashMap<NodeID, Entity>) {
     let mut node_entity_map = HashMap::new();
 
     if !path.exists() {
@@ -189,7 +192,7 @@ fn load_scene(
         )
         .unwrap();
 
-        return (Scene::default(), world, node_entity_map);
+        return (Scene::default(), node_entity_map);
     }
 
     let scene: Scene =
@@ -203,7 +206,7 @@ fn load_scene(
 
         for (node_index, instance_node) in &instance.nodes {
             let node = prefab.nodes.get_mut(*node_index).unwrap();
-            let entity = spawn_entity_for_node(&mut world, node);
+            let entity = spawn_entity_for_node(world, node);
             node_entity_map.insert(instance_node.node_id, entity);
 
             let mut entity_builder = hecs::EntityBuilderClone::new();
@@ -228,7 +231,7 @@ fn load_scene(
     NEXT_NODE_ID.fetch_add(1, Ordering::Relaxed);
     NEXT_INSTANCE_ID.fetch_add(1, Ordering::Relaxed);
 
-    (scene, world, node_entity_map)
+    (scene, node_entity_map)
 }
 
 fn get_component_registry() -> ComponentRegistry {

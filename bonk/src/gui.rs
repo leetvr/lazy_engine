@@ -3,15 +3,16 @@ use engine_types::{NodeID, PrefabInstance, components::Transform};
 use hecs::Entity;
 use std::{collections::HashMap, path::Path};
 
-pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
+pub fn draw_gui(state: &mut AppState, scene_path: &Path, herps: usize) {
     use yakui::{
         Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2, button, constrained, row, spacer,
         text, widgets::List,
     };
 
+    let world = &mut state.engine.world_mut();
     let scale_factor = state.window.scale_factor();
     let window_size = state.window.inner_size().to_logical(scale_factor);
-    let yak = &mut state.render_state.yak;
+    let yak = &mut state.yak;
     let loaded_prefabs = &mut state.loaded_prefabs;
 
     yak.start();
@@ -41,11 +42,7 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
                         text(20., label);
                     }
                     if button("nudge right").clicked {
-                        nudge(
-                            instantiated,
-                            &mut state.render_state.world,
-                            &mut state.node_entity_map,
-                        );
+                        nudge(instantiated, world, &mut state.node_entity_map);
                         scene_dirty = true;
                     }
                 }
@@ -57,13 +54,13 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
                             name,
                             prefab,
                             &mut state.scene,
-                            &mut state.render_state.world,
+                            world,
                             &mut state.node_entity_map,
                         );
                         scene_dirty = true;
                     }
                 }
-                text(40., format!("Herps: {}", state.render_state.herps));
+                text(40., format!("Herps: {}", herps));
             });
         });
         spacer(1);

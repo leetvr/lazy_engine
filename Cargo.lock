@@ -565,6 +565,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "engine",
+ "engine_types",
+ "glam",
  "log",
 ]
 
@@ -610,6 +612,7 @@ name = "engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "engine_types",
  "git-version",
  "hecs",
  "log",

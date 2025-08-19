@@ -13,7 +13,7 @@ impl YakuiRenderer {
         context: Arc<lazy_vulkan::Context>,
         image_format: vk::Format,
         yak: &'a mut yakui::Yakui,
-    ) -> Box<dyn SubRenderer<State = RenderState>> {
+    ) -> YakuiRenderer {
         // Get our yakui vulkan businesss together
         let vulkan_context = &ctx(&context);
         let mut yakui_vulkan = yakui_vulkan::YakuiVulkan::new(
@@ -28,15 +28,15 @@ impl YakuiRenderer {
         yakui_vulkan.transfers_submitted();
         yakui_vulkan.set_paint_limits(vulkan_context, yak);
 
-        Box::new(Self {
+        Self {
             yakui_vulkan,
             context,
-        })
+        }
     }
 }
 
-impl SubRenderer for YakuiRenderer {
-    type State = RenderState;
+impl<'a> SubRenderer<'a> for YakuiRenderer {
+    type State = RenderState<'a>;
 
     fn stage_transfers(
         &mut self,

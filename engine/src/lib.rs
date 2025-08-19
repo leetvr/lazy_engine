@@ -1,10 +1,11 @@
+use hecs::CommandBuffer;
 use std::{
     any::{self, Any, TypeId},
     collections::HashMap,
     ffi::CStr,
 };
 
-use hecs::CommandBuffer;
+pub use engine_types::components;
 
 type StateMap = HashMap<TypeId, Box<dyn Any>>;
 

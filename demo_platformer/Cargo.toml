@@ -5,9 +5,11 @@ edition = "2024"
 
 [dependencies]
 engine.path = "../engine"
+engine_types.path = "../engine_types"
 
 anyhow.workspace = true
 log.workspace = true
+glam.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

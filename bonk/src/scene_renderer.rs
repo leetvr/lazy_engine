@@ -1,4 +1,4 @@
-use crate::RenderState;
+use crate::{RenderState, RenderStateFamily};
 use engine_types::components::{GLTFAsset, Transform};
 use glam::Quat;
 use lazy_vulkan::{BufferAllocation, ImageManager, LazyVulkan, Pipeline, SubRenderer, ash::vk};
@@ -17,9 +17,9 @@ pub struct SceneRenderer {
 
 impl SceneRenderer {
     pub fn new(
-        lazy_vulkan: &mut LazyVulkan,
+        lazy_vulkan: &mut LazyVulkan<RenderStateFamily>,
         asset_path: PathBuf,
-    ) -> Box<dyn SubRenderer<State = RenderState>> {
+    ) -> SceneRenderer {
         let pipeline = lazy_vulkan
             .renderer
             .create_pipeline::<Registers>(VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
@@ -28,17 +28,17 @@ impl SceneRenderer {
             .allocator
             .allocate_buffer(1024 * 1000, vk::BufferUsageFlags::INDEX_BUFFER);
 
-        Box::new(SceneRenderer {
+        SceneRenderer {
             pipeline,
             index_buffer,
             assets: Default::default(),
             asset_path,
-        })
+        }
     }
 }
 
-impl SubRenderer for SceneRenderer {
-    type State = RenderState;
+impl<'a> SubRenderer<'a> for SceneRenderer {
+    type State = RenderState<'a>;
 
     fn stage_transfers(
         &mut self,
