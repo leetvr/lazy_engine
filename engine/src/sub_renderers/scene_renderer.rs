@@ -1,4 +1,4 @@
-use crate::{RenderState, RenderStateFamily};
+use crate::{TickData, TickDataFamily};
 use engine_types::components::{GLTFAsset, Transform};
 use glam::Quat;
 use lazy_vulkan::{BufferAllocation, ImageManager, LazyVulkan, Pipeline, SubRenderer, ash::vk};
@@ -16,10 +16,8 @@ pub struct SceneRenderer {
 }
 
 impl SceneRenderer {
-    pub fn new(
-        lazy_vulkan: &mut LazyVulkan<RenderStateFamily>,
-        asset_path: PathBuf,
-    ) -> SceneRenderer {
+    pub fn new(lazy_vulkan: &mut LazyVulkan<TickDataFamily>, asset_path: PathBuf) -> SceneRenderer {
+        compile_shaders();
         let pipeline = lazy_vulkan
             .renderer
             .create_pipeline::<Registers>(VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
@@ -38,7 +36,7 @@ impl SceneRenderer {
 }
 
 impl<'a> SubRenderer<'a> for SceneRenderer {
-    type State = RenderState<'a>;
+    type State = TickData<'a>;
 
     fn stage_transfers(
         &mut self,

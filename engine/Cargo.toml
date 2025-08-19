@@ -6,7 +6,11 @@ edition = "2024"
 [dependencies]
 engine_types.path = "../engine_types"
 
+lazy_vulkan.workspace = true
+lazy_vulkan_gltf.workspace = true
 anyhow.workspace = true
 git-version.workspace = true
 log.workspace = true
 hecs.workspace = true
+glam.workspace = true
+bytemuck.workspace = true

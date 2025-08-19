@@ -1,11 +1,16 @@
 use hecs::CommandBuffer;
+use lazy_vulkan::{LazyVulkan, StateFamily};
 use std::{
     any::{self, Any, TypeId},
     collections::HashMap,
     ffi::CStr,
+    path::PathBuf,
 };
 
 pub use engine_types::components;
+
+use crate::sub_renderers::SceneRenderer;
+mod sub_renderers;
 
 type StateMap = HashMap<TypeId, Box<dyn Any>>;
 
@@ -13,6 +18,8 @@ pub struct Engine {
     systems: HashMap<String, SystemFn>,
     state: StateManager,
     world: hecs::World,
+    lazy_vulkan: LazyVulkan<TickDataFamily>,
+    project_path: PathBuf,
 }
 
 pub const VERSION: &str = git_version::git_version!();
@@ -23,6 +30,11 @@ pub struct TickData<'a> {
     pub command_buffer: CommandBuffer,
     pub world: &'a hecs::World,
     state: &'a mut StateManager,
+}
+
+struct TickDataFamily;
+impl StateFamily for TickDataFamily {
+    type For<'s> = TickData<'s>;
 }
 
 impl<'a> TickData<'a> {
@@ -38,11 +50,18 @@ pub enum EngineError {
 }
 
 impl Engine {
-    pub fn new() -> Engine {
+    pub fn new_headless(project_path: impl Into<PathBuf>) -> Engine {
+        let mut lazy_vulkan = LazyVulkan::headless();
+        let project_path = project_path.into();
+        let scene_renderer = SceneRenderer::new(&mut lazy_vulkan, project_path.join("assets"));
+        lazy_vulkan.add_sub_renderer(Box::new(scene_renderer));
+
         Engine {
             systems: Default::default(),
             state: Default::default(),
             world: Default::default(),
+            lazy_vulkan,
+            project_path,
         }
     }
 
@@ -77,6 +96,8 @@ impl Engine {
             }
             log::trace!("[{system_name}] system complete");
         }
+
+        self.lazy_vulkan.draw(&tick_data);
 
         tick_data.command_buffer.run_on(&mut self.world);
     }

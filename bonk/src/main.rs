@@ -1,7 +1,6 @@
 mod gui;
-mod scene_renderer;
 mod yakui_renderer;
-use crate::{gui::draw_gui, scene_renderer::SceneRenderer, yakui_renderer::YakuiRenderer};
+use crate::{gui::draw_gui, yakui_renderer::YakuiRenderer};
 use component_registry::ComponentRegistry;
 use engine::Engine;
 use engine_types::PrefabInstance;
@@ -75,27 +74,23 @@ impl winit::application::ApplicationHandler for App {
             )
             .unwrap();
 
-        let mut lazy_vulkan = lazy_vulkan::LazyVulkan::from_window(&window);
+        let mut lazy_vulkan: LazyVulkan<RenderStateFamily> =
+            lazy_vulkan::LazyVulkan::from_window(&window);
         let mut yak = yakui::Yakui::new();
 
-        let asset_path = self.project_path.join("assets");
-
-        let scene_renderer = Box::new(SceneRenderer::new(&mut lazy_vulkan, asset_path));
-        lazy_vulkan.add_sub_renderer(scene_renderer);
-
-        let yakui_renderer = Box::new(YakuiRenderer::new(
+        let yakui_renderer = YakuiRenderer::new(
             lazy_vulkan.context.clone(),
             lazy_vulkan.renderer.get_drawable_format(),
             &mut yak,
-        ));
-        lazy_vulkan.add_sub_renderer(yakui_renderer);
+        );
+        lazy_vulkan.add_sub_renderer(Box::new(yakui_renderer));
 
         let yakui_winit = yakui_winit::YakuiWinit::new(&window);
         let mut component_registry = get_component_registry();
         let mut loaded_prefabs =
             load_prefabs(self.project_path.join("prefabs"), &mut component_registry);
 
-        let mut engine = Engine::new();
+        let mut engine = Engine::new_headless(&self.project_path);
         let (scene, node_entity_map) = load_scene(
             &self.project_path.join("scenes").join("default.json"),
             &mut loaded_prefabs,
@@ -155,6 +150,7 @@ impl winit::application::ApplicationHandler for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 state.engine.tick();
+
                 let herps = *state.engine.get_state::<usize>().unwrap();
                 let scene_path = self.project_path.join("scenes").join("default.json");
                 draw_gui(state, &scene_path, herps);
@@ -335,7 +331,7 @@ fn load_prefabs(
 #[command(version, about, long_about = None)]
 struct Args {
     /// Path to the project
-    #[arg(short, long, default_value = "./")]
+    #[arg(short, long)]
     project_path: String,
 }
 
@@ -345,7 +341,6 @@ fn main() {
     log::info!("::READY TO BONK::");
     use clap::Parser;
     let args = Args::parse();
-    scene_renderer::compile_shaders();
     let event_loop = winit::event_loop::EventLoop::new().unwrap();
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
     let mut app = App::new(args.project_path);

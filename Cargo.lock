@@ -612,9 +612,13 @@ name = "engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "engine_types",
  "git-version",
+ "glam",
  "hecs",
+ "lazy_vulkan",
+ "lazy_vulkan_gltf",
  "log",
 ]
 
