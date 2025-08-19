@@ -7,6 +7,8 @@ edition = "2024"
 prefab_compiler.path = "../prefab_compiler"
 component_registry.path = "../component_registry"
 engine_types.path = "../engine_types"
+engine.path = "../engine"
+system_loader.path = "../system_loader"
 
 bytemuck.workspace = true
 hecs.workspace = true
@@ -19,3 +21,5 @@ winit.workspace = true
 yakui.workspace = true
 yakui-vulkan.workspace = true
 yakui-winit.workspace = true
+log.workspace = true
+env_logger.workspace = true

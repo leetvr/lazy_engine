@@ -1,5 +1,5 @@
 pub mod components;
-use std::collections::HashMap;
+use std::{collections::HashMap, error::Error};
 
 use serde::{Deserialize, Serialize};
 

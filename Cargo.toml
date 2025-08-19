@@ -7,10 +7,13 @@ members = [
     "engine_protocol",
     "engine_types",
     "prefab_compiler",
+    "system_loader",
 ]
 resolver = "3"
 
 [workspace.dependencies]
+libloading = "0.8"
+anyhow.version = "1"
 lazy_vulkan.path = "../lazy_vulkan"
 clap = { version = "4", features = ["derive"] }
 hecs = { version = "0.10" }
@@ -23,3 +26,6 @@ yakui-vulkan = { git = "https://github.com/SecondHalfGames/yakui.git", rev = "79
 yakui-winit = { git = "https://github.com/SecondHalfGames/yakui.git", rev = "797aeccbab1e269c88d0c39df8e6fe18ce21f97e", version = "0.3.0" }
 lazy_vulkan_gltf.path = "../lazy_vulkan_gltf"
 bytemuck = "1"
+git-version = "0.3"
+log = "0.4"
+env_logger = "0.11"

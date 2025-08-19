@@ -1,9 +1,9 @@
 [package]
-name = "engine"
+name = "system_loader"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+libloading.workspace = true
 anyhow.workspace = true
-git-version.workspace = true
-log.workspace = true
+engine.path = "../engine"

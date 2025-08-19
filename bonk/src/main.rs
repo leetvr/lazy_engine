@@ -3,6 +3,7 @@ mod scene_renderer;
 mod yakui_renderer;
 use crate::{gui::draw_gui, scene_renderer::SceneRenderer, yakui_renderer::YakuiRenderer};
 use component_registry::ComponentRegistry;
+use engine::Engine;
 use engine_types::PrefabInstance;
 use engine_types::{
     InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition, Scene, components::Transform,
@@ -17,6 +18,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
+use system_loader::GameplayLib;
 use winit::window::WindowAttributes;
 
 pub struct RenderState {
@@ -35,6 +37,9 @@ struct AppState {
     component_registry: ComponentRegistry,
     scene: Scene,
     node_entity_map: HashMap<NodeID, Entity>,
+    engine: Engine,
+    #[allow(unused)]
+    gameplay: GameplayLib,
 }
 
 #[derive(Default)]
@@ -87,6 +92,12 @@ impl winit::application::ApplicationHandler for App {
             &component_registry,
         );
 
+        let mut engine = Engine::new();
+        let gameplay_code = unsafe {
+            system_loader::GameplayLib::load("target/debug", "demo_platformer", &mut engine)
+        }
+        .unwrap();
+
         self.state = Some(AppState {
             window,
             lazy_vulkan,
@@ -97,6 +108,8 @@ impl winit::application::ApplicationHandler for App {
             component_registry,
             scene,
             node_entity_map,
+            engine,
+            gameplay: gameplay_code,
         })
     }
 
@@ -132,6 +145,7 @@ impl winit::application::ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
+                state.engine.tick();
                 let scene_path = self.project_path.join("scenes").join("default.json");
                 draw_gui(state, &scene_path);
                 state
@@ -321,8 +335,10 @@ struct Args {
 }
 
 fn main() {
+    env_logger::init();
+    log::info!("::BONK SYSTEMS ONLINE::");
+    log::info!("::READY TO BONK::");
     use clap::Parser;
-
     let args = Args::parse();
     scene_renderer::compile_shaders();
     let event_loop = winit::event_loop::EventLoop::new().unwrap();
