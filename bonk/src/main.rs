@@ -47,6 +47,7 @@ struct AppState {
     #[allow(unused)]
     gameplay: GameplayLib,
     yak: yakui::Yakui,
+    editor_texture: yakui::TextureId,
 }
 
 #[derive(Default)]
@@ -76,13 +77,25 @@ impl winit::application::ApplicationHandler for App {
 
         let mut lazy_vulkan: LazyVulkan<RenderStateFamily> =
             lazy_vulkan::LazyVulkan::from_window(&window);
+
+        let format = lazy_vulkan.renderer.get_drawable_format();
+        let mut editor_extent = lazy_vulkan.renderer.get_drawable_extent();
+        editor_extent.width /= 2;
+
+        let mut engine = Engine::new_headless(
+            &self.project_path,
+            lazy_vulkan.core.clone(),
+            lazy_vulkan.context.clone(),
+            editor_extent,
+            format,
+        );
+
         let mut yak = yakui::Yakui::new();
 
-        let yakui_renderer = YakuiRenderer::new(
-            lazy_vulkan.context.clone(),
-            lazy_vulkan.renderer.get_drawable_format(),
-            &mut yak,
-        );
+        let mut yakui_renderer = YakuiRenderer::new(lazy_vulkan.context.clone(), format, &mut yak);
+
+        let editor_texture = yakui_renderer.create_engine_image(engine.get_headless_image());
+
         lazy_vulkan.add_sub_renderer(Box::new(yakui_renderer));
 
         let yakui_winit = yakui_winit::YakuiWinit::new(&window);
@@ -90,7 +103,6 @@ impl winit::application::ApplicationHandler for App {
         let mut loaded_prefabs =
             load_prefabs(self.project_path.join("prefabs"), &mut component_registry);
 
-        let mut engine = Engine::new_headless(&self.project_path);
         let (scene, node_entity_map) = load_scene(
             &self.project_path.join("scenes").join("default.json"),
             &mut loaded_prefabs,
@@ -114,6 +126,7 @@ impl winit::application::ApplicationHandler for App {
             engine,
             gameplay: gameplay_code,
             yak,
+            editor_texture,
         })
     }
 
@@ -149,16 +162,22 @@ impl winit::application::ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
-                state.engine.tick();
+                let swapchain = state.lazy_vulkan.get_drawable();
+                state.lazy_vulkan.begin_commands();
+                state.engine.tick_headless();
 
                 let herps = *state.engine.get_state::<usize>().unwrap();
                 let scene_path = self.project_path.join("scenes").join("default.json");
                 draw_gui(state, &scene_path, herps);
-                state.lazy_vulkan.draw(&RenderState {
-                    yak: &state.yak,
-                    world: state.engine.world_mut(),
-                    herps,
-                });
+                state.lazy_vulkan.draw_to_drawable(
+                    &RenderState {
+                        yak: &state.yak,
+                        world: state.engine.world_mut(),
+                        herps,
+                    },
+                    &swapchain,
+                );
+                state.lazy_vulkan.submit_and_present(swapchain);
             }
             _ => {}
         }

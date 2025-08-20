@@ -1,11 +1,12 @@
 use crate::RenderState;
-use lazy_vulkan::{ImageManager, SubRenderer, ash::vk};
+use lazy_vulkan::{FULL_IMAGE, HeadlessSwapchainImage, ImageManager, SubRenderer, ash::vk};
 use std::sync::Arc;
 
 pub struct YakuiRenderer {
     yakui_vulkan: yakui_vulkan::YakuiVulkan,
     // Because we do some more involved transfer operations, we need to stash a context reference
     context: Arc<lazy_vulkan::Context>,
+    engine_image: Option<HeadlessSwapchainImage>,
 }
 
 impl YakuiRenderer {
@@ -31,7 +32,24 @@ impl YakuiRenderer {
         Self {
             yakui_vulkan,
             context,
+            engine_image: None,
         }
+    }
+
+    pub fn create_engine_image(
+        &mut self,
+        engine_image: HeadlessSwapchainImage,
+    ) -> yakui::TextureId {
+        let vulkan_context = &ctx(&self.context);
+        let texture = yakui_vulkan::VulkanTexture::from_image(
+            vulkan_context,
+            self.yakui_vulkan.descriptors(),
+            engine_image.image,
+            engine_image.memory,
+            engine_image.view,
+        );
+        self.engine_image = Some(engine_image);
+        self.yakui_vulkan.add_user_texture(texture)
     }
 }
 
@@ -48,6 +66,29 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
 
         // You *MUST* have called `yak.paint() this frame`
         let paint = render_state.yak.paint_dom();
+
+        if let Some(engine_image) = &self.engine_image {
+            let context = &self.context;
+            let command_buffer = context.draw_command_buffer;
+
+            // Transition the rendering attachments into their correct state
+            unsafe {
+                context.cmd_pipeline_barrier2(
+                    command_buffer,
+                    &vk::DependencyInfo::default().image_memory_barriers(&[
+                        vk::ImageMemoryBarrier2::default()
+                            .subresource_range(FULL_IMAGE)
+                            .image(engine_image.image)
+                            .src_access_mask(vk::AccessFlags2::NONE)
+                            .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
+                            .dst_access_mask(vk::AccessFlags2::SHADER_READ)
+                            .dst_stage_mask(vk::PipelineStageFlags2::FRAGMENT_SHADER)
+                            .old_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+                            .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL),
+                    ]),
+                );
+            }
+        }
 
         unsafe {
             self.yakui_vulkan.transfers_finished(vulkan_context);

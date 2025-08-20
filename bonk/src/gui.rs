@@ -5,7 +5,7 @@ use std::{collections::HashMap, path::Path};
 
 pub fn draw_gui(state: &mut AppState, scene_path: &Path, herps: usize) {
     use yakui::{
-        Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2, button, constrained, row, spacer,
+        Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2, button, constrained, image, row,
         text, widgets::List,
     };
 
@@ -16,7 +16,8 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path, herps: usize) {
     let loaded_prefabs = &mut state.loaded_prefabs;
 
     yak.start();
-    let constraints = Constraints::tight(Vec2::new(window_size.width / 2.0, window_size.height));
+    let half_screen_size = Vec2::new(window_size.width / 2.0, window_size.height);
+    let constraints = Constraints::tight(half_screen_size);
     let mut scene_dirty = false;
 
     row(|| {
@@ -63,7 +64,7 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path, herps: usize) {
                 text(40., format!("Herps: {}", herps));
             });
         });
-        spacer(1);
+        image(state.editor_texture, half_screen_size);
     });
 
     yak.finish();
