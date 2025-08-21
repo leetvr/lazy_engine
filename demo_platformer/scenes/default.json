@@ -10,7 +10,7 @@
           "overrides": {
             "Transform": {
               "position": [
-                0.2,
+                0.8999999999999999,
                 0.0,
                 0.0
               ],
@@ -70,7 +70,7 @@
           "overrides": {
             "Transform": {
               "position": [
-                4.799999999999999,
+                4.999999999999998,
                 0.0,
                 0.0
               ],
@@ -87,6 +87,17 @@
               ]
             }
           }
+        }
+      }
+    },
+    {
+      "instance_id": 3,
+      "prefab": "cube",
+      "nodes": {
+        "0": {
+          "node_index": 0,
+          "node_id": 3,
+          "overrides": {}
         }
       }
     }

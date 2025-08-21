@@ -1,11 +1,16 @@
-use std::{ffi::CString, str::FromStr};
+use std::{any::TypeId, ffi::CString, str::FromStr};
 
-use engine::{Engine, TickData};
+use engine::{Engine, TickData, components::Transform};
+use glam::Quat;
 
 /// Example gameplay system
 fn my_system(tick: &mut TickData) -> anyhow::Result<()> {
     let herps = tick.get_state::<usize>().unwrap();
     *herps += 1;
+
+    for (_, transform) in tick.world.query::<&mut Transform>().iter() {
+        transform.rotation *= Quat::from_rotation_y(0.03);
+    }
 
     Ok(())
 }
@@ -14,6 +19,8 @@ fn my_system(tick: &mut TickData) -> anyhow::Result<()> {
 #[unsafe(no_mangle)]
 pub extern "C" fn init(engine_ptr: *mut Engine) {
     println!("INIT!");
+    let transform_type_id = TypeId::of::<engine_types::components::Transform>();
+    println!("INIT: Transform type_id: {transform_type_id:?}");
     let engine = get_engine(engine_ptr);
     engine.register_system("my_system", my_system);
     engine.insert_state(0 as usize);

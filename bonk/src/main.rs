@@ -9,6 +9,7 @@ use engine_types::{
 };
 use hecs::Entity;
 use lazy_vulkan::{LazyVulkan, StateFamily};
+use std::any::TypeId;
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -48,6 +49,20 @@ struct AppState {
     gameplay: GameplayLib,
     yak: yakui::Yakui,
     editor_texture: yakui::TextureId,
+    play_state: PlayState,
+}
+
+enum PlayState {
+    Playing,
+    Stopped,
+}
+impl PlayState {
+    fn flip(&mut self) {
+        *self = match self {
+            PlayState::Playing => PlayState::Stopped,
+            PlayState::Stopped => PlayState::Playing,
+        };
+    }
 }
 
 #[derive(Default)]
@@ -127,6 +142,7 @@ impl winit::application::ApplicationHandler for App {
             gameplay: gameplay_code,
             yak,
             editor_texture,
+            play_state: PlayState::Playing,
         })
     }
 
@@ -164,7 +180,10 @@ impl winit::application::ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 let swapchain = state.lazy_vulkan.get_drawable();
                 state.lazy_vulkan.begin_commands();
-                state.engine.tick_headless();
+                match &state.play_state {
+                    PlayState::Playing => state.engine.tick_headless(),
+                    _ => {}
+                }
 
                 let herps = *state.engine.get_state::<usize>().unwrap();
                 let scene_path = self.project_path.join("scenes").join("default.json");
@@ -358,6 +377,8 @@ fn main() {
     env_logger::init();
     log::info!("::BONK SYSTEMS ONLINE::");
     log::info!("::READY TO BONK::");
+    let transform_type_id = TypeId::of::<engine_types::components::Transform>();
+    println!("EDITOR: Transform type_id: {transform_type_id:?}");
     use clap::Parser;
     let args = Args::parse();
     let event_loop = winit::event_loop::EventLoop::new().unwrap();

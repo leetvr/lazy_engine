@@ -1,4 +1,4 @@
-use crate::{AppState, spawn_prefab};
+use crate::{AppState, PlayState, spawn_prefab};
 use engine_types::{NodeID, PrefabInstance, components::Transform};
 use hecs::Entity;
 use std::{collections::HashMap, path::Path};
@@ -62,6 +62,14 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path, herps: usize) {
                     }
                 }
                 text(40., format!("Herps: {}", herps));
+                if match &state.play_state {
+                    PlayState::Playing => button("Stop"),
+                    PlayState::Stopped => button("Play"),
+                }
+                .clicked
+                {
+                    state.play_state.flip();
+                }
             });
         });
         image(state.editor_texture, half_screen_size);
