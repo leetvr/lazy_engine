@@ -107,10 +107,12 @@ impl winit::application::ApplicationHandler for App {
 
         let mut yak = yakui::Yakui::new();
 
-        let mut yakui_renderer = YakuiRenderer::new(lazy_vulkan.context.clone(), format, &mut yak);
-
-        let editor_texture = yakui_renderer.create_engine_image(engine.get_headless_image());
-
+        let (yakui_renderer, editor_texture) = YakuiRenderer::new(
+            lazy_vulkan.context.clone(),
+            format,
+            &mut yak,
+            engine.get_headless_image(),
+        );
         lazy_vulkan.add_sub_renderer(Box::new(yakui_renderer));
 
         let yakui_winit = yakui_winit::YakuiWinit::new(&window);
@@ -157,12 +159,14 @@ impl winit::application::ApplicationHandler for App {
 
         // The logic here is a little weird.
         // First, resized events are special: both we and yakui need to handle them
-        if let WindowEvent::Resized(size) = event {
+        if let WindowEvent::Resized(new_size) = event {
             state
                 .yakui_winit
                 .handle_window_event(&mut state.yak, &event);
 
-            state.lazy_vulkan.resize(size.width, size.height);
+            state.lazy_vulkan.resize(new_size);
+            state.engine.resize(new_size);
+
             return;
         };
 

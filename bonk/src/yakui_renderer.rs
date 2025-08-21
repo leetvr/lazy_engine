@@ -6,7 +6,7 @@ pub struct YakuiRenderer {
     yakui_vulkan: yakui_vulkan::YakuiVulkan,
     // Because we do some more involved transfer operations, we need to stash a context reference
     context: Arc<lazy_vulkan::Context>,
-    engine_image: Option<HeadlessSwapchainImage>,
+    engine_image: HeadlessSwapchainImage,
 }
 
 impl YakuiRenderer {
@@ -14,7 +14,8 @@ impl YakuiRenderer {
         context: Arc<lazy_vulkan::Context>,
         image_format: vk::Format,
         yak: &'a mut yakui::Yakui,
-    ) -> YakuiRenderer {
+        engine_image: HeadlessSwapchainImage,
+    ) -> (YakuiRenderer, yakui::TextureId) {
         // Get our yakui vulkan businesss together
         let vulkan_context = &ctx(&context);
         let mut yakui_vulkan = yakui_vulkan::YakuiVulkan::new(
@@ -25,31 +26,26 @@ impl YakuiRenderer {
                 subpass: 0,
             },
         );
-
-        yakui_vulkan.transfers_submitted();
-        yakui_vulkan.set_paint_limits(vulkan_context, yak);
-
-        Self {
-            yakui_vulkan,
-            context,
-            engine_image: None,
-        }
-    }
-
-    pub fn create_engine_image(
-        &mut self,
-        engine_image: HeadlessSwapchainImage,
-    ) -> yakui::TextureId {
-        let vulkan_context = &ctx(&self.context);
         let texture = yakui_vulkan::VulkanTexture::from_image(
             vulkan_context,
-            self.yakui_vulkan.descriptors(),
+            yakui_vulkan.descriptors(),
             engine_image.image,
             engine_image.memory,
             engine_image.view,
         );
-        self.engine_image = Some(engine_image);
-        self.yakui_vulkan.add_user_texture(texture)
+        let texture_id = yakui_vulkan.add_user_texture(texture);
+
+        yakui_vulkan.transfers_submitted();
+        yakui_vulkan.set_paint_limits(vulkan_context, yak);
+
+        (
+            Self {
+                yakui_vulkan,
+                context,
+                engine_image,
+            },
+            texture_id,
+        )
     }
 }
 
@@ -67,27 +63,25 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
         // You *MUST* have called `yak.paint() this frame`
         let paint = render_state.yak.paint_dom();
 
-        if let Some(engine_image) = &self.engine_image {
-            let context = &self.context;
-            let command_buffer = context.draw_command_buffer;
+        let context = &self.context;
+        let command_buffer = context.draw_command_buffer;
 
-            // Transition the rendering attachments into their correct state
-            unsafe {
-                context.cmd_pipeline_barrier2(
-                    command_buffer,
-                    &vk::DependencyInfo::default().image_memory_barriers(&[
-                        vk::ImageMemoryBarrier2::default()
-                            .subresource_range(FULL_IMAGE)
-                            .image(engine_image.image)
-                            .src_access_mask(vk::AccessFlags2::NONE)
-                            .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
-                            .dst_access_mask(vk::AccessFlags2::SHADER_READ)
-                            .dst_stage_mask(vk::PipelineStageFlags2::FRAGMENT_SHADER)
-                            .old_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-                            .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL),
-                    ]),
-                );
-            }
+        // Transition the rendering attachments into their correct state
+        unsafe {
+            context.cmd_pipeline_barrier2(
+                command_buffer,
+                &vk::DependencyInfo::default().image_memory_barriers(&[
+                    vk::ImageMemoryBarrier2::default()
+                        .subresource_range(FULL_IMAGE)
+                        .image(self.engine_image.image)
+                        .src_access_mask(vk::AccessFlags2::NONE)
+                        .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
+                        .dst_access_mask(vk::AccessFlags2::SHADER_READ)
+                        .dst_stage_mask(vk::PipelineStageFlags2::FRAGMENT_SHADER)
+                        .old_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+                        .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL),
+                ]),
+            );
         }
 
         unsafe {

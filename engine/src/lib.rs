@@ -1,5 +1,5 @@
 use hecs::CommandBuffer;
-use lazy_vulkan::{LazyVulkan, StateFamily, ash::vk};
+use lazy_vulkan::{IntoExtent, LazyVulkan, StateFamily, ash::vk};
 use std::{
     any::{self, Any, TypeId},
     collections::HashMap,
@@ -151,6 +151,10 @@ impl Engine {
             .renderer
             .get_headless_image()
             .expect("You're not in headless mode, idiot")
+    }
+
+    pub fn resize(&mut self, new_extent: impl IntoExtent) {
+        self.lazy_vulkan.resize(new_extent);
     }
 }
 
