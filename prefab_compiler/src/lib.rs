@@ -47,6 +47,8 @@ fn compile_node(
 
 #[cfg(test)]
 mod tests {
+    use engine_types::CanYak;
+
     use super::*;
 
     #[test]
@@ -60,6 +62,18 @@ mod tests {
         #[derive(serde::Deserialize, serde::Serialize, Default, Clone, PartialEq, Debug)]
         struct NextComponent {
             an_array: Vec<String>,
+        }
+
+        impl CanYak for FirstComponent {
+            fn get_paint_fn() -> engine_types::PaintFn {
+                Box::new(|_, _| {})
+            }
+        }
+
+        impl CanYak for NextComponent {
+            fn get_paint_fn() -> engine_types::PaintFn {
+                Box::new(|_, _| {})
+            }
         }
 
         let definition = serde_json::json!({

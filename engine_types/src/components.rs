@@ -1,10 +1,23 @@
 use std::ops::Mul;
 
+use glam::EulerRot;
 use serde::{Deserialize, Serialize};
+use yakui::label;
+
+use crate::CanYak;
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct GLTFAsset {
     pub path: String,
+}
+
+impl CanYak for GLTFAsset {
+    fn get_paint_fn() -> crate::PaintFn {
+        Box::new(|world, entity| {
+            let asset = world.get::<&GLTFAsset>(entity).unwrap();
+            label(asset.path.clone());
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -24,6 +37,27 @@ impl Default for Transform {
             rotation: glam::Quat::IDENTITY,
         }
     }
+}
+
+impl CanYak for Transform {
+    fn get_paint_fn() -> crate::PaintFn {
+        Box::new(|world, entity| {
+            let transform = world.get::<&Transform>(entity).unwrap();
+            label(format!("Position: {}", transform.position));
+            label(format!("Rotation: {}", pretty_rotation(transform.rotation)));
+            label(format!("Scale: {}", transform.scale));
+        })
+    }
+}
+
+fn pretty_rotation(rotation: glam::Quat) -> String {
+    let (y, x, z) = rotation.to_euler(EulerRot::YXZ);
+    format!(
+        "x: {:.2}, y: {:.2}, z: {:.2}",
+        x.to_degrees(),
+        y.to_degrees(),
+        z.to_degrees()
+    )
 }
 
 const fn default_scale() -> glam::Vec3 {

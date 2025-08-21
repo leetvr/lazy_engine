@@ -83,3 +83,9 @@ pub struct PrefabDefinition {
     #[serde(default)]
     pub children: Vec<PrefabDefinition>,
 }
+
+pub trait CanYak {
+    fn get_paint_fn() -> PaintFn;
+}
+
+pub type PaintFn = Box<dyn Fn(&hecs::World, hecs::Entity) + Send + Sync>;

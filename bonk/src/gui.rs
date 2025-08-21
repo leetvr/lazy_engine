@@ -2,6 +2,7 @@ use crate::{AppState, PlayState, spawn_prefab};
 use engine_types::{NodeID, PrefabInstance, components::Transform};
 use hecs::Entity;
 use std::{collections::HashMap, path::Path};
+use yakui::expanded;
 
 pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
     use yakui::{
@@ -35,12 +36,25 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
                     text(30., label);
                     text(30., "nodes:");
                     for (index, node) in &instantiated.nodes {
-                        let entity_id = state.node_entity_map.get(&node.node_id).unwrap().id();
+                        let entity = state.node_entity_map.get(&node.node_id).unwrap();
+                        let entity_id = entity.id();
                         let label = format!(
                             "[index: {index}, node: {node_id}, entity: {entity_id}]",
                             node_id = node.node_id
                         );
                         text(20., label);
+
+                        let entity_ref = world.entity(*entity).unwrap();
+                        for component_type_id in entity_ref.component_types().into_iter() {
+                            if let Some(name) = state.component_registry.get_name(component_type_id)
+                            {
+                                text(20., name.clone());
+                            }
+
+                            if let Some(gui) = state.component_registry.get_gui(component_type_id) {
+                                gui(world, *entity)
+                            }
+                        }
                     }
                     if button("nudge right").clicked {
                         nudge(instantiated, world, &mut state.node_entity_map);
@@ -71,7 +85,9 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
                 }
             });
         });
-        image(state.engine_texture, half_screen_size);
+        expanded(|| {
+            image(state.engine_texture, half_screen_size);
+        });
     });
 
     yak.finish();

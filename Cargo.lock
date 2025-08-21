@@ -635,6 +635,7 @@ dependencies = [
  "hecs",
  "serde",
  "serde_json",
+ "yakui",
 ]
 
 [[package]]
