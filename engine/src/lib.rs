@@ -87,7 +87,7 @@ impl Engine {
         self.systems.insert(name.into(), system);
     }
 
-    pub fn tick_headless(&mut self) {
+    pub fn tick_headless(&mut self, run_systems: bool) {
         let command_buffer = CommandBuffer::new();
         let mut tick_data = TickData {
             dt: 0.,
@@ -96,13 +96,15 @@ impl Engine {
             command_buffer,
         };
 
-        for (system_name, system) in &mut self.systems {
-            log::trace!("[{system_name}] system starting..");
-            if let Err(e) = system(&mut tick_data) {
-                log::error!("[{system_name}]: {e:?}");
-                return;
+        if run_systems {
+            for (system_name, system) in &mut self.systems {
+                log::trace!("[{system_name}] system starting..");
+                if let Err(e) = system(&mut tick_data) {
+                    log::error!("[{system_name}]: {e:?}");
+                    return;
+                }
+                log::trace!("[{system_name}] system complete");
             }
-            log::trace!("[{system_name}] system complete");
         }
 
         let drawable = self.lazy_vulkan.get_drawable();

@@ -1,51 +1,26 @@
 use crate::RenderState;
-use lazy_vulkan::{FULL_IMAGE, HeadlessSwapchainImage, ImageManager, SubRenderer, ash::vk};
-use std::sync::Arc;
+use lazy_vulkan::{FULL_IMAGE, ImageManager, SubRenderer, ash::vk};
+use std::sync::{Arc, Mutex, atomic::AtomicU64};
+use yakui_vulkan::vk::Handle;
 
 pub struct YakuiRenderer {
-    yakui_vulkan: yakui_vulkan::YakuiVulkan,
+    yakui_vulkan: Arc<Mutex<yakui_vulkan::YakuiVulkan>>,
     // Because we do some more involved transfer operations, we need to stash a context reference
     context: Arc<lazy_vulkan::Context>,
-    engine_image: HeadlessSwapchainImage,
+    engine_image: Arc<AtomicU64>, // hilarious
 }
 
 impl YakuiRenderer {
     pub fn new<'a>(
         context: Arc<lazy_vulkan::Context>,
-        image_format: vk::Format,
-        yak: &'a mut yakui::Yakui,
-        engine_image: HeadlessSwapchainImage,
-    ) -> (YakuiRenderer, yakui::TextureId) {
-        // Get our yakui vulkan businesss together
-        let vulkan_context = &ctx(&context);
-        let mut yakui_vulkan = yakui_vulkan::YakuiVulkan::new(
-            vulkan_context,
-            yakui_vulkan::Options {
-                dynamic_rendering_format: Some(image_format),
-                render_pass: vk::RenderPass::null(),
-                subpass: 0,
-            },
-        );
-        let texture = yakui_vulkan::VulkanTexture::from_image(
-            vulkan_context,
-            yakui_vulkan.descriptors(),
-            engine_image.image,
-            engine_image.memory,
-            engine_image.view,
-        );
-        let texture_id = yakui_vulkan.add_user_texture(texture);
-
-        yakui_vulkan.transfers_submitted();
-        yakui_vulkan.set_paint_limits(vulkan_context, yak);
-
-        (
-            Self {
-                yakui_vulkan,
-                context,
-                engine_image,
-            },
-            texture_id,
-        )
+        yakui_vulkan: Arc<Mutex<yakui_vulkan::YakuiVulkan>>,
+        engine_image: Arc<AtomicU64>,
+    ) -> YakuiRenderer {
+        Self {
+            yakui_vulkan,
+            context,
+            engine_image,
+        }
     }
 }
 
@@ -59,12 +34,17 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
         _: &mut ImageManager,
     ) {
         let vulkan_context = &ctx(&self.context);
+        let mut yakui_vulkan = self.yakui_vulkan.lock().unwrap();
 
         // You *MUST* have called `yak.paint() this frame`
         let paint = render_state.yak.paint_dom();
 
         let context = &self.context;
         let command_buffer = context.draw_command_buffer;
+
+        // Comedy
+        let engine_image =
+            vk::Image::from_raw(self.engine_image.load(std::sync::atomic::Ordering::Relaxed));
 
         // Transition the rendering attachments into their correct state
         unsafe {
@@ -73,7 +53,7 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
                 &vk::DependencyInfo::default().image_memory_barriers(&[
                     vk::ImageMemoryBarrier2::default()
                         .subresource_range(FULL_IMAGE)
-                        .image(self.engine_image.image)
+                        .image(engine_image)
                         .src_access_mask(vk::AccessFlags2::NONE)
                         .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
                         .dst_access_mask(vk::AccessFlags2::SHADER_READ)
@@ -85,9 +65,8 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
         }
 
         unsafe {
-            self.yakui_vulkan.transfers_finished(vulkan_context);
-            self.yakui_vulkan
-                .transfer(paint, vulkan_context, self.context.draw_command_buffer);
+            yakui_vulkan.transfers_finished(vulkan_context);
+            yakui_vulkan.transfer(paint, vulkan_context, self.context.draw_command_buffer);
         };
     }
 
@@ -98,6 +77,7 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
         params: lazy_vulkan::DrawParams,
     ) {
         let vulkan_context = &ctx(&context);
+        let mut yakui_vulkan = self.yakui_vulkan.lock().unwrap();
 
         // You *MUST* have called `yak.paint()` this frame
         let paint = render_state.yak.paint_dom();
@@ -131,14 +111,14 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
             );
 
             // Paint the GUI
-            self.yakui_vulkan.paint(
+            yakui_vulkan.paint(
                 paint,
                 vulkan_context,
                 self.context.draw_command_buffer,
                 params.drawable.extent,
             );
             context.cmd_end_rendering(command_buffer);
-            self.yakui_vulkan.transfers_submitted();
+            yakui_vulkan.transfers_submitted();
         };
     }
 
@@ -147,7 +127,7 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
     }
 }
 
-fn ctx<'a>(context: &'a lazy_vulkan::Context) -> yakui_vulkan::VulkanContext<'a> {
+pub fn ctx<'a>(context: &'a lazy_vulkan::Context) -> yakui_vulkan::VulkanContext<'a> {
     yakui_vulkan::VulkanContext {
         device: &context.device,
         queue: context.graphics_queue,

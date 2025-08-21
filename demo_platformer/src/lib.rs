@@ -5,11 +5,8 @@ use glam::Quat;
 
 /// Example gameplay system
 fn my_system(tick: &mut TickData) -> anyhow::Result<()> {
-    let herps = tick.get_state::<usize>().unwrap();
-    *herps += 1;
-
     for (_, transform) in tick.world.query::<&mut Transform>().iter() {
-        transform.rotation *= Quat::from_rotation_y(0.03);
+        transform.rotation *= Quat::from_rotation_y(0.05);
     }
 
     Ok(())

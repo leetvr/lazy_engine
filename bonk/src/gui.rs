@@ -3,7 +3,7 @@ use engine_types::{NodeID, PrefabInstance, components::Transform};
 use hecs::Entity;
 use std::{collections::HashMap, path::Path};
 
-pub fn draw_gui(state: &mut AppState, scene_path: &Path, herps: usize) {
+pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
     use yakui::{
         Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2, button, constrained, image, row,
         text, widgets::List,
@@ -61,7 +61,6 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path, herps: usize) {
                         scene_dirty = true;
                     }
                 }
-                text(40., format!("Herps: {}", herps));
                 if match &state.play_state {
                     PlayState::Playing => button("Stop"),
                     PlayState::Stopped => button("Play"),
@@ -72,7 +71,7 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path, herps: usize) {
                 }
             });
         });
-        image(state.editor_texture, half_screen_size);
+        image(state.engine_texture, half_screen_size);
     });
 
     yak.finish();

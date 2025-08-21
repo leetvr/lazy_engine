@@ -1,25 +1,29 @@
 mod gui;
 mod yakui_renderer;
-use crate::{gui::draw_gui, yakui_renderer::YakuiRenderer};
+use crate::{
+    gui::draw_gui,
+    yakui_renderer::{YakuiRenderer, ctx},
+};
 use component_registry::ComponentRegistry;
 use engine::Engine;
-use engine_types::PrefabInstance;
 use engine_types::{
-    InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition, Scene, components::Transform,
+    InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition, PrefabInstance, Scene,
+    components::Transform,
 };
 use hecs::Entity;
 use lazy_vulkan::{LazyVulkan, StateFamily};
-use std::any::TypeId;
 use std::{
+    any::TypeId,
     collections::HashMap,
     path::PathBuf,
     sync::{
-        LazyLock,
-        atomic::{AtomicUsize, Ordering},
+        Arc, LazyLock, Mutex,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
 };
 use system_loader::GameplayLib;
 use winit::window::WindowAttributes;
+use yakui_vulkan::vk::{self, Handle};
 
 static GAMEPLAY_LIB_PATH: &'static str = "target/debug";
 static GAMEPLAY_LIB_NAME: &str = "demo_platformer";
@@ -32,7 +36,6 @@ impl StateFamily for RenderStateFamily {
 pub struct RenderState<'s> {
     pub yak: &'s yakui::Yakui,
     pub world: &'s hecs::World,
-    pub herps: usize,
 }
 
 struct AppState {
@@ -48,10 +51,13 @@ struct AppState {
     #[allow(unused)]
     gameplay: GameplayLib,
     yak: yakui::Yakui,
-    editor_texture: yakui::TextureId,
+    engine_texture: yakui::TextureId,
     play_state: PlayState,
+    yakui_vulkan: Arc<Mutex<yakui_vulkan::YakuiVulkan>>,
+    engine_image: Arc<AtomicU64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum PlayState {
     Playing,
     Stopped,
@@ -85,7 +91,7 @@ impl winit::application::ApplicationHandler for App {
         let window = event_loop
             .create_window(
                 WindowAttributes::default()
-                    .with_maximized(true)
+                    .with_maximized(false)
                     .with_title("Bonk"),
             )
             .unwrap();
@@ -107,11 +113,39 @@ impl winit::application::ApplicationHandler for App {
 
         let mut yak = yakui::Yakui::new();
 
-        let (yakui_renderer, editor_texture) = YakuiRenderer::new(
+        // Get our yakui vulkan businesss together
+        let vulkan_context = &ctx(&lazy_vulkan.context);
+        let mut yakui_vulkan = yakui_vulkan::YakuiVulkan::new(
+            vulkan_context,
+            yakui_vulkan::Options {
+                dynamic_rendering_format: Some(format),
+                render_pass: vk::RenderPass::null(),
+                subpass: 0,
+            },
+        );
+
+        let engine_image = engine.get_headless_image();
+
+        let texture = yakui_vulkan::VulkanTexture::from_image(
+            vulkan_context,
+            yakui_vulkan.descriptors(),
+            engine_image.image,
+            engine_image.memory,
+            engine_image.view,
+        );
+        let engine_texture = yakui_vulkan.add_user_texture(texture);
+
+        yakui_vulkan.transfers_submitted();
+        yakui_vulkan.set_paint_limits(vulkan_context, &mut yak);
+
+        let yakui_vulkan = Arc::new(Mutex::new(yakui_vulkan));
+
+        let engine_image = Arc::new(AtomicU64::new(engine_image.image.as_raw()));
+
+        let yakui_renderer = YakuiRenderer::new(
             lazy_vulkan.context.clone(),
-            format,
-            &mut yak,
-            engine.get_headless_image(),
+            yakui_vulkan.clone(),
+            engine_image.clone(),
         );
         lazy_vulkan.add_sub_renderer(Box::new(yakui_renderer));
 
@@ -143,8 +177,10 @@ impl winit::application::ApplicationHandler for App {
             engine,
             gameplay: gameplay_code,
             yak,
-            editor_texture,
+            engine_texture,
             play_state: PlayState::Playing,
+            yakui_vulkan,
+            engine_image,
         })
     }
 
@@ -160,12 +196,30 @@ impl winit::application::ApplicationHandler for App {
         // The logic here is a little weird.
         // First, resized events are special: both we and yakui need to handle them
         if let WindowEvent::Resized(new_size) = event {
+            println!("RESIZED: {new_size:?}");
             state
                 .yakui_winit
                 .handle_window_event(&mut state.yak, &event);
 
             state.lazy_vulkan.resize(new_size);
             state.engine.resize(new_size);
+            let engine_image = state.engine.get_headless_image();
+
+            let mut yakui_vulkan = state.yakui_vulkan.lock().unwrap();
+
+            let vulkan_context = ctx(&state.lazy_vulkan.context);
+            let texture = yakui_vulkan::VulkanTexture::from_image(
+                &vulkan_context,
+                yakui_vulkan.descriptors(),
+                engine_image.image,
+                engine_image.memory,
+                engine_image.view,
+            );
+            state.engine_texture = yakui_vulkan.add_user_texture(texture);
+
+            state
+                .engine_image
+                .store(engine_image.image.as_raw(), Ordering::Relaxed);
 
             return;
         };
@@ -184,19 +238,15 @@ impl winit::application::ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 let swapchain = state.lazy_vulkan.get_drawable();
                 state.lazy_vulkan.begin_commands();
-                match &state.play_state {
-                    PlayState::Playing => state.engine.tick_headless(),
-                    _ => {}
-                }
+                let should_run_systems = state.play_state == PlayState::Playing;
+                state.engine.tick_headless(should_run_systems);
 
-                let herps = *state.engine.get_state::<usize>().unwrap();
                 let scene_path = self.project_path.join("scenes").join("default.json");
-                draw_gui(state, &scene_path, herps);
+                draw_gui(state, &scene_path);
                 state.lazy_vulkan.draw_to_drawable(
                     &RenderState {
                         yak: &state.yak,
                         world: state.engine.world_mut(),
-                        herps,
                     },
                     &swapchain,
                 );
