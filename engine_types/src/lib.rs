@@ -89,3 +89,26 @@ pub trait CanYak {
 }
 
 pub type PaintFn = Box<dyn Fn(&hecs::World, hecs::Entity) + Send + Sync>;
+
+pub struct EditorState<'a> {
+    pub play_mode: &'a mut EditorPlayMode,
+    pub world: &'a hecs::World,
+    pub scene: &'a mut Scene,
+    pub node_entity_map: &'a HashMap<NodeID, hecs::Entity>,
+    pub loaded_prefabs: &'a HashMap<String, Prefab>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub enum EditorPlayMode {
+    Play,
+    Stop,
+}
+
+impl EditorPlayMode {
+    pub fn flip(&mut self) {
+        *self = match *self {
+            EditorPlayMode::Play => EditorPlayMode::Stop,
+            EditorPlayMode::Stop => EditorPlayMode::Play,
+        }
+    }
+}

@@ -257,9 +257,20 @@ dependencies = [
  "serde_json",
  "system_loader",
  "winit",
- "yakui",
+ "yakui 0.3.0",
  "yakui-vulkan",
  "yakui-winit",
+]
+
+[[package]]
+name = "bonk_gui"
+version = "0.1.0"
+dependencies = [
+ "component_registry",
+ "engine_types",
+ "hecs",
+ "yakui 0.3.0",
+ "yakui-shadcn",
 ]
 
 [[package]]
@@ -568,6 +579,7 @@ dependencies = [
  "engine_types",
  "glam",
  "log",
+ "yakui 0.3.0",
 ]
 
 [[package]]
@@ -635,7 +647,7 @@ dependencies = [
  "hecs",
  "serde",
  "serde_json",
- "yakui",
+ "yakui 0.3.0",
 ]
 
 [[package]]
@@ -2951,16 +2963,23 @@ checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 [[package]]
 name = "yakui"
 version = "0.3.0"
-source = "git+https://github.com/SecondHalfGames/yakui.git?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e#797aeccbab1e269c88d0c39df8e6fe18ce21f97e"
 dependencies = [
- "yakui-core",
- "yakui-widgets",
+ "yakui-core 0.3.0",
+ "yakui-widgets 0.3.0",
+]
+
+[[package]]
+name = "yakui"
+version = "0.3.0"
+source = "git+https://github.com/SecondHalfGames/yakui?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e#797aeccbab1e269c88d0c39df8e6fe18ce21f97e"
+dependencies = [
+ "yakui-core 0.3.0 (git+https://github.com/SecondHalfGames/yakui?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e)",
+ "yakui-widgets 0.3.0 (git+https://github.com/SecondHalfGames/yakui?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e)",
 ]
 
 [[package]]
 name = "yakui-core"
 version = "0.3.0"
-source = "git+https://github.com/SecondHalfGames/yakui.git?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e#797aeccbab1e269c88d0c39df8e6fe18ce21f97e"
 dependencies = [
  "anymap",
  "bitflags 2.9.2",
@@ -2974,36 +2993,69 @@ dependencies = [
 ]
 
 [[package]]
+name = "yakui-core"
+version = "0.3.0"
+source = "git+https://github.com/SecondHalfGames/yakui?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e#797aeccbab1e269c88d0c39df8e6fe18ce21f97e"
+dependencies = [
+ "anymap",
+ "bitflags 2.9.2",
+ "fast-srgb8",
+ "glam",
+ "keyboard-types",
+ "log",
+ "profiling",
+ "smallvec",
+ "thunderdome",
+]
+
+[[package]]
+name = "yakui-shadcn"
+version = "0.1.0"
+dependencies = [
+ "yakui 0.3.0 (git+https://github.com/SecondHalfGames/yakui?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e)",
+]
+
+[[package]]
 name = "yakui-vulkan"
 version = "0.3.0"
-source = "git+https://github.com/SecondHalfGames/yakui.git?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e#797aeccbab1e269c88d0c39df8e6fe18ce21f97e"
 dependencies = [
  "ash",
  "bytemuck",
  "thunderdome",
- "yakui-core",
+ "yakui-core 0.3.0",
 ]
 
 [[package]]
 name = "yakui-widgets"
 version = "0.3.0"
-source = "git+https://github.com/SecondHalfGames/yakui.git?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e#797aeccbab1e269c88d0c39df8e6fe18ce21f97e"
 dependencies = [
  "arboard",
  "cosmic-text",
  "log",
  "sys-locale",
  "thunderdome",
- "yakui-core",
+ "yakui-core 0.3.0",
+]
+
+[[package]]
+name = "yakui-widgets"
+version = "0.3.0"
+source = "git+https://github.com/SecondHalfGames/yakui?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e#797aeccbab1e269c88d0c39df8e6fe18ce21f97e"
+dependencies = [
+ "arboard",
+ "cosmic-text",
+ "log",
+ "sys-locale",
+ "thunderdome",
+ "yakui-core 0.3.0 (git+https://github.com/SecondHalfGames/yakui?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e)",
 ]
 
 [[package]]
 name = "yakui-winit"
 version = "0.3.0"
-source = "git+https://github.com/SecondHalfGames/yakui.git?rev=797aeccbab1e269c88d0c39df8e6fe18ce21f97e#797aeccbab1e269c88d0c39df8e6fe18ce21f97e"
 dependencies = [
  "winit",
- "yakui-core",
+ "yakui-core 0.3.0",
 ]
 
 [[package]]

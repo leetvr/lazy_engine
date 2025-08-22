@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "bonk",
+    "bonk_gui",
     "component_registry",
     "demo_platformer",
     "engine",
@@ -22,10 +23,14 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
 winit = "0.30.12"
 glam = { version = "0.30.5", features = ["serde"] }
-yakui = { git = "https://github.com/SecondHalfGames/yakui.git", rev = "797aeccbab1e269c88d0c39df8e6fe18ce21f97e", version = "0.3.0" }
-yakui-vulkan = { git = "https://github.com/SecondHalfGames/yakui.git", rev = "797aeccbab1e269c88d0c39df8e6fe18ce21f97e", version = "0.3.0" }
-yakui-winit = { git = "https://github.com/SecondHalfGames/yakui.git", rev = "797aeccbab1e269c88d0c39df8e6fe18ce21f97e", version = "0.3.0" }
+# yakui = { git = "https://github.com/SecondHalfGames/yakui.git", rev = "797aeccbab1e269c88d0c39df8e6fe18ce21f97e", version = "0.3.0" }
+# yakui-vulkan = { git = "https://github.com/SecondHalfGames/yakui.git", rev = "797aeccbab1e269c88d0c39df8e6fe18ce21f97e", version = "0.3.0" }
+# yakui-winit = { git = "https://github.com/SecondHalfGames/yakui.git", rev = "797aeccbab1e269c88d0c39df8e6fe18ce21f97e", version = "0.3.0" }
+yakui.path = "../yakui/crates/yakui"
+yakui-vulkan.path = "../yakui/crates/yakui-vulkan"
+yakui-winit.path = "../yakui/crates/yakui-winit"
 lazy_vulkan_gltf.path = "../lazy_vulkan_gltf"
+yakui-shadcn.path = "../yakui-shadcn/yakui-shadcn"
 bytemuck = "1"
 git-version = "0.3"
 log = "0.4"

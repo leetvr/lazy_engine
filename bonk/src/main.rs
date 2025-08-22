@@ -7,8 +7,8 @@ use crate::{
 use component_registry::ComponentRegistry;
 use engine::Engine;
 use engine_types::{
-    InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition, PrefabInstance, Scene,
-    components::Transform,
+    EditorPlayMode, EditorState, InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition,
+    PrefabInstance, Scene, components::Transform,
 };
 use hecs::Entity;
 use lazy_vulkan::{LazyVulkan, StateFamily};
@@ -25,8 +25,11 @@ use system_loader::GameplayLib;
 use winit::window::WindowAttributes;
 use yakui_vulkan::vk::{self, Handle};
 
-static GAMEPLAY_LIB_PATH: &'static str = "target/debug";
+pub type GuiFn = Box<dyn Fn(&yakui::dom::Dom, EditorState, &ComponentRegistry) + Send + Sync>;
+
+static LIB_PATH: &'static str = "target/debug";
 static GAMEPLAY_LIB_NAME: &str = "demo_platformer";
+static GUI_LIB_NAME: &str = "bonk_gui";
 
 pub struct RenderStateFamily;
 impl StateFamily for RenderStateFamily {
@@ -50,9 +53,12 @@ struct AppState {
     engine: Engine,
     #[allow(unused)]
     gameplay: GameplayLib,
+    #[allow(unused)]
+    gui: GameplayLib,
+    gui_fn: GuiFn,
     yak: yakui::Yakui,
     engine_texture: yakui::TextureId,
-    play_state: PlayState,
+    play_state: EditorPlayMode,
     yakui_vulkan: Arc<Mutex<yakui_vulkan::YakuiVulkan>>,
     engine_image: Arc<AtomicU64>,
 }
@@ -112,6 +118,7 @@ impl winit::application::ApplicationHandler for App {
         );
 
         let mut yak = yakui::Yakui::new();
+        // yakui_shadcn::add_fonts(&mut yak);
 
         // Get our yakui vulkan businesss together
         let vulkan_context = &ctx(&lazy_vulkan.context);
@@ -162,9 +169,18 @@ impl winit::application::ApplicationHandler for App {
         );
 
         let gameplay_code = unsafe {
-            system_loader::GameplayLib::load(GAMEPLAY_LIB_PATH, GAMEPLAY_LIB_NAME, &mut engine)
+            system_loader::GameplayLib::load(LIB_PATH, GAMEPLAY_LIB_NAME, Some(&mut engine))
         }
         .unwrap();
+
+        let gui =
+            unsafe { system_loader::GameplayLib::load(LIB_PATH, GUI_LIB_NAME, None) }.unwrap();
+
+        // Get the exported function
+        let get_gui: system_loader::Symbol<unsafe extern "C" fn() -> GuiFn> =
+            unsafe { gui.lib.get(b"get_bonk_gui\0") }.unwrap();
+
+        let gui_fn = unsafe { get_gui() };
 
         self.state = Some(AppState {
             window,
@@ -176,9 +192,11 @@ impl winit::application::ApplicationHandler for App {
             node_entity_map,
             engine,
             gameplay: gameplay_code,
+            gui,
+            gui_fn,
             yak,
             engine_texture,
-            play_state: PlayState::Playing,
+            play_state: EditorPlayMode::Play,
             yakui_vulkan,
             engine_image,
         })
@@ -238,7 +256,7 @@ impl winit::application::ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 let swapchain = state.lazy_vulkan.get_drawable();
                 state.lazy_vulkan.begin_commands();
-                let should_run_systems = state.play_state == PlayState::Playing;
+                let should_run_systems = state.play_state == EditorPlayMode::Play;
                 state.engine.tick_headless(should_run_systems);
 
                 let scene_path = self.project_path.join("scenes").join("default.json");
@@ -255,7 +273,12 @@ impl winit::application::ApplicationHandler for App {
             _ => {}
         }
 
-        unsafe { state.gameplay.check_reload(&mut state.engine).unwrap() };
+        unsafe {
+            state
+                .gameplay
+                .check_and_reload(Some(&mut state.engine))
+                .unwrap()
+        };
     }
 
     fn about_to_wait(&mut self, _: &winit::event_loop::ActiveEventLoop) {

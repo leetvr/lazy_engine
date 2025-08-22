@@ -1,95 +1,41 @@
-use crate::{AppState, PlayState, spawn_prefab};
-use engine_types::{NodeID, PrefabInstance, components::Transform};
+use crate::{AppState, GuiFn};
+use engine_types::{EditorState, NodeID, PrefabInstance, components::Transform};
 use hecs::Entity;
 use std::{collections::HashMap, path::Path};
 use yakui::expanded;
 
 pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
     use yakui::{
-        Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2, button, constrained, image, row,
-        text, widgets::List,
+        Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2, constrained, image, row,
+        widgets::List,
     };
 
-    let world = &mut state.engine.world_mut();
     let scale_factor = state.window.scale_factor();
     let window_size = state.window.inner_size().to_logical(scale_factor);
-    let yak = &mut state.yak;
-    let loaded_prefabs = &mut state.loaded_prefabs;
 
-    yak.start();
+    state.yak.start();
     let half_screen_size = Vec2::new(window_size.width / 2.0, window_size.height);
     let constraints = Constraints::tight(half_screen_size);
     let mut scene_dirty = false;
+
+    if unsafe { state.gui.check_and_reload(None) }.unwrap() {
+        let get_gui: system_loader::Symbol<unsafe extern "C" fn() -> GuiFn> =
+            unsafe { state.gui.lib.get(b"get_bonk_gui\0") }.unwrap();
+
+        state.gui_fn = unsafe { get_gui() };
+    }
 
     row(|| {
         constrained(constraints, || {
             let mut column = List::column();
             column.main_axis_alignment = MainAxisAlignment::Start;
             column.cross_axis_alignment = CrossAxisAlignment::Start;
-            column.show(|| {
-                text(40., "Prefabs in scene");
-                for instantiated in &mut state.scene.instances {
-                    let label = format!(
-                        "[id: {}, prefab_name: {}]",
-                        instantiated.instance_id, &instantiated.prefab
-                    );
-                    text(30., label);
-                    text(30., "nodes:");
-                    for (index, node) in &instantiated.nodes {
-                        let entity = state.node_entity_map.get(&node.node_id).unwrap();
-                        let entity_id = entity.id();
-                        let label = format!(
-                            "[index: {index}, node: {node_id}, entity: {entity_id}]",
-                            node_id = node.node_id
-                        );
-                        text(20., label);
-
-                        let entity_ref = world.entity(*entity).unwrap();
-                        for component_type_id in entity_ref.component_types().into_iter() {
-                            if let Some(name) = state.component_registry.get_name(component_type_id)
-                            {
-                                text(20., name.clone());
-                            }
-
-                            if let Some(gui) = state.component_registry.get_gui(component_type_id) {
-                                gui(world, *entity)
-                            }
-                        }
-                    }
-                    if button("nudge right").clicked {
-                        nudge(instantiated, world, &mut state.node_entity_map);
-                        scene_dirty = true;
-                    }
-                }
-
-                text(40., "Available prefabs");
-                for (name, prefab) in loaded_prefabs.iter_mut() {
-                    if button(name.clone()).clicked {
-                        spawn_prefab(
-                            name,
-                            prefab,
-                            &mut state.scene,
-                            world,
-                            &mut state.node_entity_map,
-                        );
-                        scene_dirty = true;
-                    }
-                }
-                if match &state.play_state {
-                    PlayState::Playing => button("Stop"),
-                    PlayState::Stopped => button("Play"),
-                }
-                .clicked
-                {
-                    state.play_state.flip();
-                }
-            });
+            column.show(|| scene_dirty = gui_inner(state));
         });
-        expanded(|| {
-            image(state.engine_texture, half_screen_size);
-        });
+        image(state.engine_texture, half_screen_size);
     });
 
+    let yak = &mut state.yak;
     yak.finish();
     yak.paint();
 
@@ -100,6 +46,21 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
         )
         .unwrap();
     }
+}
+
+fn gui_inner(state: &mut AppState) -> bool {
+    (state.gui_fn)(
+        &state.yak.dom(),
+        EditorState {
+            play_mode: &mut state.play_state,
+            world: &state.engine.world_mut(),
+            scene: &mut state.scene,
+            node_entity_map: &state.node_entity_map,
+            loaded_prefabs: &state.loaded_prefabs,
+        },
+        &state.component_registry,
+    );
+    false
 }
 
 fn nudge(

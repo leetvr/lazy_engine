@@ -5,13 +5,12 @@ use std::{
 };
 
 use engine::Engine;
-use libloading::{Library, Symbol};
+pub use libloading::{Library, Symbol};
 
 /// # SAFETY
 /// You MUST keep this struct in scope in order for your systems to execute correctly.
 pub struct GameplayLib {
-    #[allow(unused)]
-    lib: Library,
+    pub lib: Library,
     last_modified: SystemTime,
     lib_name: String,
     lib_path: PathBuf,
@@ -22,17 +21,19 @@ impl GameplayLib {
     pub unsafe fn load(
         lib_path: impl AsRef<Path>,
         lib_name: &str,
-        engine: &mut Engine,
+        engine: Option<&mut Engine>,
     ) -> anyhow::Result<Self> {
         let lib_path = lib_path.as_ref();
         let version = 0;
         let lib = copy_and_load_lib(lib_name, lib_path, version)?;
 
-        // Get the exported function
-        let init: Symbol<unsafe extern "C" fn(*mut Engine)> = unsafe { lib.get(b"init\0") }?;
+        if let Some(engine) = engine {
+            // Get the exported function
+            let init: Symbol<unsafe extern "C" fn(*mut Engine)> = unsafe { lib.get(b"init\0") }?;
 
-        // Call it with our engine pointer
-        unsafe { init(engine as *mut Engine) };
+            // Call it with our engine pointer
+            unsafe { init(engine as *mut Engine) };
+        }
 
         let last_modified = get_real_lib_last_modified(lib_name, lib_path);
 
@@ -45,10 +46,10 @@ impl GameplayLib {
         })
     }
 
-    pub unsafe fn check_reload(&mut self, engine: &mut Engine) -> anyhow::Result<()> {
+    pub unsafe fn check_and_reload(&mut self, engine: Option<&mut Engine>) -> anyhow::Result<bool> {
         let last_modified = get_real_lib_last_modified(&self.lib_name, &self.lib_path);
         if last_modified == self.last_modified {
-            return Ok(());
+            return Ok(false);
         }
 
         self.last_modified = last_modified;
@@ -62,16 +63,19 @@ impl GameplayLib {
         self.version += 1;
         let lib = copy_and_load_lib(&self.lib_name, &self.lib_path, self.version)?;
 
-        // Get the exported function
-        let reload: Symbol<unsafe extern "C" fn(*mut Engine)> = unsafe { lib.get(b"reload\0") }?;
+        if let Some(engine) = engine {
+            // Get the exported function
+            let reload: Symbol<unsafe extern "C" fn(*mut Engine)> =
+                unsafe { lib.get(b"reload\0") }?;
 
-        // Call it with our engine pointer
-        unsafe { reload(engine as *mut Engine) };
+            // Call it with our engine pointer
+            unsafe { reload(engine as *mut Engine) };
+        }
 
         // Stash the new library
         self.lib = lib;
 
-        Ok(())
+        Ok(true)
     }
 }
 

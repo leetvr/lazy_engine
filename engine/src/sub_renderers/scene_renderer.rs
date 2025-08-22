@@ -77,37 +77,7 @@ impl<'a> SubRenderer<'a> for SceneRenderer {
         let command_buffer = context.draw_command_buffer;
         let world = &state.world;
 
-        let drawable_extent = params.drawable.extent;
-
-        // We're only drawing on the *right* hand side of the screen.
-        let extent = vk::Extent2D {
-            width: drawable_extent.width / 2,
-            height: drawable_extent.height,
-        };
-
-        let mvp = build_mvp(extent);
-        unsafe {
-            device.cmd_set_scissor(
-                command_buffer,
-                0,
-                &[vk::Rect2D {
-                    offset: vk::Offset2D {
-                        x: extent.width as _,
-                        ..Default::default()
-                    },
-                    extent,
-                }],
-            );
-            device.cmd_set_viewport(
-                command_buffer,
-                0,
-                &[vk::Viewport::default()
-                    .width(extent.width as _)
-                    .height(extent.height as _)
-                    .x(extent.width as _)
-                    .max_depth(1.)],
-            );
-        };
+        let mvp = build_mvp(params.drawable.extent);
 
         for (_, (asset, transform)) in world.query::<(&GLTFAsset, &Transform)>().iter() {
             let Some(asset) = self.assets.get(&asset.path) else {
@@ -167,7 +137,7 @@ fn build_mvp(extent: vk::Extent2D) -> glam::Mat4 {
     // TODO: camera
     let world_from_view = glam::Affine3A::from_rotation_translation(
         Quat::from_euler(glam::EulerRot::YXZ, TAU * 0.1, -TAU * 0.1, 0.),
-        glam::Vec3::new(4., 4., 4.),
+        glam::Vec3::new(8., 4., 4.),
     );
     let view_from_world = world_from_view.inverse();
 
