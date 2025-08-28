@@ -118,7 +118,7 @@ impl winit::application::ApplicationHandler for App {
         );
 
         let mut yak = yakui::Yakui::new();
-        // yakui_shadcn::add_fonts(&mut yak);
+        yakui_shadcn::add_fonts(&mut yak);
 
         // Get our yakui vulkan businesss together
         let vulkan_context = &ctx(&lazy_vulkan.context);

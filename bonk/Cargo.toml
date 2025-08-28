@@ -9,6 +9,7 @@ component_registry.path = "../component_registry"
 engine_types.path = "../engine_types"
 engine.path = "../engine"
 system_loader.path = "../system_loader"
+yakui-shadcn.path = "../../yakui-shadcn/yakui-shadcn"
 
 bytemuck.workspace = true
 hecs.workspace = true
