@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 prefab_compiler.path = "../prefab_compiler"
-component_registry.path = "../component_registry"
 engine_types.path = "../engine_types"
 engine.path = "../engine"
 system_loader.path = "../system_loader"

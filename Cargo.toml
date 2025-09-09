@@ -2,7 +2,6 @@
 members = [
     "bonk",
     "bonk_gui",
-    "component_registry",
     "demo_platformer",
     "engine",
     "engine_protocol",

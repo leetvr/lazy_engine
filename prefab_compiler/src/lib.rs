@@ -1,5 +1,4 @@
-use component_registry::ComponentRegistry;
-use engine_types::{Prefab, PrefabDefinition, PrefabNode};
+use engine_types::{ComponentRegistry, Prefab, PrefabDefinition, PrefabNode};
 use hecs::EntityBuilderClone;
 
 pub fn compile(definition: &PrefabDefinition, component_registry: &ComponentRegistry) -> Prefab {

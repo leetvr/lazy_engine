@@ -1,4 +1,6 @@
+mod component_registry;
 pub mod components;
+pub use component_registry::ComponentRegistry;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -15,7 +17,7 @@ pub struct PrefabInstance {
     pub nodes: HashMap<usize, InstanceNode>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Default)]
+#[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct InstanceNode {
     pub node_index: usize,
     pub node_id: NodeID,
@@ -43,7 +45,9 @@ impl InstanceID {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Deserialize, Serialize, Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug,
+)]
 pub struct NodeID(usize);
 
 impl NodeID {
@@ -96,6 +100,11 @@ pub struct EditorState<'a> {
     pub scene: &'a mut Scene,
     pub node_entity_map: &'a HashMap<NodeID, hecs::Entity>,
     pub loaded_prefabs: &'a HashMap<String, Prefab>,
+    pub prefab_definitions: &'a HashMap<String, PrefabDefinition>,
+    pub component_registry: &'a ComponentRegistry,
+    pub engine_texture: yakui::TextureId,
+    pub screen_size: yakui::Vec2,
+    pub scale: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -112,3 +121,5 @@ impl EditorPlayMode {
         }
     }
 }
+
+pub type GuiFn = Box<dyn Fn(&yakui::dom::Dom, EditorState) + Send + Sync>;

@@ -6,7 +6,7 @@ use yakui::label;
 
 use crate::CanYak;
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct GLTFAsset {
     pub path: String,
 }

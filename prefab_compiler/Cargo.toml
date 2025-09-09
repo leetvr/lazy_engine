@@ -9,4 +9,3 @@ serde.workspace = true
 serde_json.workspace = true
 
 engine_types.path = "../engine_types"
-component_registry.path = "../component_registry"

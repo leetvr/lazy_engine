@@ -244,7 +244,6 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "clap",
- "component_registry",
  "engine",
  "engine_types",
  "env_logger",
@@ -267,7 +266,6 @@ dependencies = [
 name = "bonk_gui"
 version = "0.1.0"
 dependencies = [
- "component_registry",
  "engine_types",
  "hecs",
  "yakui",
@@ -466,16 +464,6 @@ checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
 dependencies = [
  "bytes",
  "memchr",
-]
-
-[[package]]
-name = "component_registry"
-version = "0.1.0"
-dependencies = [
- "engine_types",
- "hecs",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1657,7 +1645,6 @@ dependencies = [
 name = "prefab_compiler"
 version = "0.1.0"
 dependencies = [
- "component_registry",
  "engine_types",
  "hecs",
  "serde",
@@ -2989,6 +2976,7 @@ name = "yakui-shadcn"
 version = "0.1.0"
 dependencies = [
  "yakui",
+ "yakui-core",
 ]
 
 [[package]]

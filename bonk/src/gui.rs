@@ -2,21 +2,9 @@ use crate::{AppState, GuiFn};
 use engine_types::{EditorState, NodeID, PrefabInstance, components::Transform};
 use hecs::Entity;
 use std::{collections::HashMap, path::Path};
-use yakui::expanded;
 
 pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
-    use yakui::{
-        Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2, constrained, image, row,
-        widgets::List,
-    };
-
-    let scale_factor = state.window.scale_factor();
-    let window_size = state.window.inner_size().to_logical(scale_factor);
-
     state.yak.start();
-    let half_screen_size = Vec2::new(window_size.width / 2.0, window_size.height);
-    let constraints = Constraints::tight(half_screen_size);
-    let mut scene_dirty = false;
 
     if unsafe { state.gui.check_and_reload(None) }.unwrap() {
         let get_gui: system_loader::Symbol<unsafe extern "C" fn() -> GuiFn> =
@@ -25,15 +13,7 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
         state.gui_fn = unsafe { get_gui() };
     }
 
-    row(|| {
-        constrained(constraints, || {
-            let mut column = List::column();
-            column.main_axis_alignment = MainAxisAlignment::Start;
-            column.cross_axis_alignment = CrossAxisAlignment::Start;
-            column.show(|| scene_dirty = gui_inner(state));
-        });
-        image(state.engine_texture, half_screen_size);
-    });
+    let scene_dirty = gui_inner(state);
 
     let yak = &mut state.yak;
     yak.finish();
@@ -49,6 +29,8 @@ pub fn draw_gui(state: &mut AppState, scene_path: &Path) {
 }
 
 fn gui_inner(state: &mut AppState) -> bool {
+    let screen_size = state.window.inner_size();
+    let screen_size = [screen_size.width as f32, screen_size.height as f32];
     (state.gui_fn)(
         &state.yak.dom(),
         EditorState {
@@ -57,8 +39,12 @@ fn gui_inner(state: &mut AppState) -> bool {
             scene: &mut state.scene,
             node_entity_map: &state.node_entity_map,
             loaded_prefabs: &state.loaded_prefabs,
+            prefab_definitions: &state.prefab_definitions,
+            component_registry: &state.component_registry,
+            engine_texture: state.engine_texture,
+            screen_size: screen_size.into(),
+            scale: state.window.scale_factor() as _,
         },
-        &state.component_registry,
     );
     false
 }

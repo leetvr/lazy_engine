@@ -4,11 +4,10 @@ use crate::{
     gui::draw_gui,
     yakui_renderer::{YakuiRenderer, ctx},
 };
-use component_registry::ComponentRegistry;
 use engine::Engine;
 use engine_types::{
-    EditorPlayMode, EditorState, InstanceID, InstanceNode, NodeID, Prefab, PrefabDefinition,
-    PrefabInstance, Scene, components::Transform,
+    ComponentRegistry, EditorPlayMode, EditorState, GuiFn, InstanceID, InstanceNode, NodeID,
+    Prefab, PrefabDefinition, PrefabInstance, Scene, components::Transform,
 };
 use hecs::Entity;
 use lazy_vulkan::{LazyVulkan, StateFamily};
@@ -24,8 +23,6 @@ use std::{
 use system_loader::GameplayLib;
 use winit::window::WindowAttributes;
 use yakui_vulkan::vk::{self, Handle};
-
-pub type GuiFn = Box<dyn Fn(&yakui::dom::Dom, EditorState, &ComponentRegistry) + Send + Sync>;
 
 static LIB_PATH: &'static str = "target/debug";
 static GAMEPLAY_LIB_NAME: &str = "demo_platformer";
@@ -46,6 +43,7 @@ struct AppState {
     lazy_vulkan: LazyVulkan<RenderStateFamily>,
     yakui_winit: yakui_winit::YakuiWinit,
     loaded_prefabs: HashMap<String, Prefab>,
+    prefab_definitions: HashMap<String, PrefabDefinition>,
     #[allow(unused)]
     component_registry: ComponentRegistry,
     scene: Scene,
@@ -61,20 +59,6 @@ struct AppState {
     play_state: EditorPlayMode,
     yakui_vulkan: Arc<Mutex<yakui_vulkan::YakuiVulkan>>,
     engine_image: Arc<AtomicU64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum PlayState {
-    Playing,
-    Stopped,
-}
-impl PlayState {
-    fn flip(&mut self) {
-        *self = match self {
-            PlayState::Playing => PlayState::Stopped,
-            PlayState::Stopped => PlayState::Playing,
-        };
-    }
 }
 
 #[derive(Default)]
@@ -107,7 +91,7 @@ impl winit::application::ApplicationHandler for App {
 
         let format = lazy_vulkan.renderer.get_drawable_format();
         let mut editor_extent = lazy_vulkan.renderer.get_drawable_extent();
-        editor_extent.width /= 2;
+        editor_extent.width -= (256.0 * window.scale_factor()) as u32;
 
         let mut engine = Engine::new_headless(
             &self.project_path,
@@ -158,7 +142,7 @@ impl winit::application::ApplicationHandler for App {
 
         let yakui_winit = yakui_winit::YakuiWinit::new(&window);
         let mut component_registry = get_component_registry();
-        let mut loaded_prefabs =
+        let (mut loaded_prefabs, prefab_definitions) =
             load_prefabs(self.project_path.join("prefabs"), &mut component_registry);
 
         let (scene, node_entity_map) = load_scene(
@@ -187,6 +171,7 @@ impl winit::application::ApplicationHandler for App {
             lazy_vulkan,
             yakui_winit,
             loaded_prefabs,
+            prefab_definitions,
             component_registry,
             scene,
             node_entity_map,
@@ -402,9 +387,10 @@ static NEXT_NODE_ID: LazyLock<AtomicUsize> = LazyLock::new(|| AtomicUsize::new(0
 fn load_prefabs(
     prefabs_path: PathBuf,
     component_registry: &mut ComponentRegistry,
-) -> HashMap<String, Prefab> {
+) -> (HashMap<String, Prefab>, HashMap<String, PrefabDefinition>) {
     log::info!("Loading prefabs from path: {:?}", prefabs_path);
     let mut prefabs = HashMap::new();
+    let mut prefab_definitions = HashMap::new();
 
     for entry in std::fs::read_dir(prefabs_path).unwrap() {
         let entry = entry.unwrap();
@@ -434,12 +420,13 @@ fn load_prefabs(
         let definition: PrefabDefinition = serde_json::from_reader(reader).unwrap();
         let prefab = prefab_compiler::compile(&definition, component_registry);
 
-        prefabs.insert(file_name, prefab);
+        prefabs.insert(file_name.clone(), prefab);
+        prefab_definitions.insert(file_name, definition);
     }
 
     log::info!("Successfully loaded {} prefabs!", prefabs.len());
 
-    prefabs
+    (prefabs, prefab_definitions)
 }
 
 #[derive(clap::Parser, Debug)]

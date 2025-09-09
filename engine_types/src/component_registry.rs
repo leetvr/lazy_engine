@@ -1,25 +1,31 @@
-use std::{any::TypeId, collections::HashMap};
+use std::{any::TypeId, collections::HashMap, path::Component};
 
-use engine_types::{
+use crate::{
     CanYak, PaintFn,
     components::{GLTFAsset, Transform},
 };
 use hecs::EntityBuilderClone;
+use serde_json::Value;
 
 type DeserialiseFn = Box<dyn Fn(&mut EntityBuilderClone, serde_json::Value) + Send + Sync>;
+type SerialiseFn = Box<dyn Fn(&hecs::World, hecs::Entity) -> serde_json::Value + Send + Sync>;
 
 pub struct ComponentRegistry {
     deserialisers: HashMap<String, DeserialiseFn>,
+    serialisers: HashMap<String, SerialiseFn>,
     gui: HashMap<TypeId, PaintFn>,
-    names: HashMap<TypeId, String>,
+    type_id_to_name: HashMap<TypeId, String>,
+    name_to_type_id: HashMap<String, TypeId>,
 }
 
 impl Default for ComponentRegistry {
     fn default() -> Self {
         let mut registry = ComponentRegistry {
             deserialisers: Default::default(),
+            serialisers: Default::default(),
             gui: Default::default(),
-            names: Default::default(),
+            type_id_to_name: Default::default(),
+            name_to_type_id: Default::default(),
         };
 
         registry.register_component::<GLTFAsset>();
@@ -32,7 +38,13 @@ impl Default for ComponentRegistry {
 impl ComponentRegistry {
     pub fn register_component<Component>(&mut self)
     where
-        Component: Send + Sync + serde::de::DeserializeOwned + 'static + Clone + CanYak,
+        Component: Send
+            + Sync
+            + serde::de::DeserializeOwned
+            + serde::ser::Serialize
+            + 'static
+            + Clone
+            + CanYak,
     {
         // Ha ha! Ha ha ha! Yes!
         let name = std::any::type_name::<Component>()
@@ -48,10 +60,18 @@ impl ComponentRegistry {
                 builder.add(component);
             }),
         );
+        self.serialisers.insert(
+            name.clone(),
+            Box::new(move |world, entity| {
+                let component = Component::clone(&world.get::<&Component>(entity).unwrap());
+                serde_json::to_value(component).unwrap()
+            }),
+        );
 
         let type_id = TypeId::of::<Component>();
         self.gui.insert(type_id, Component::get_paint_fn());
-        self.names.insert(type_id, name.clone());
+        self.type_id_to_name.insert(type_id, name.clone());
+        self.name_to_type_id.insert(name.clone(), type_id);
     }
 
     pub fn add_component_to_builder(
@@ -68,14 +88,28 @@ impl ComponentRegistry {
         self.gui.get(&component_type_id)
     }
 
+    pub fn get_component_as_value(
+        &self,
+        component_name: impl AsRef<str>,
+        world: &hecs::World,
+        entity: hecs::Entity,
+    ) -> Value {
+        let serialiser = self.serialisers.get(component_name.as_ref()).unwrap();
+        serialiser(world, entity)
+    }
+
     pub fn get_name(&self, component_type_id: TypeId) -> Option<&String> {
-        self.names.get(&component_type_id)
+        self.type_id_to_name.get(&component_type_id)
+    }
+
+    pub fn get_type_id(&self, name: &str) -> Option<TypeId> {
+        self.name_to_type_id.get(name).copied()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use engine_types::CanYak;
+    use crate::CanYak;
 
     use crate::ComponentRegistry;
 
@@ -88,7 +122,7 @@ mod tests {
         }
 
         impl CanYak for MyComponent {
-            fn get_paint_fn() -> engine_types::PaintFn {
+            fn get_paint_fn() -> crate::PaintFn {
                 Box::new(|_, _| {})
             }
         }
