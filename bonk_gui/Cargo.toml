@@ -8,7 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 engine_types.path = "../engine_types"
-yakui-shadcn.path = "../../yakui-shadcn/yakui-shadcn"
+component_registry.path = "../component_registry"
 
 hecs.workspace = true
 yakui-shadcn.workspace = true

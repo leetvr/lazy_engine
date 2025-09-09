@@ -568,7 +568,6 @@ dependencies = [
  "engine_types",
  "glam",
  "log",
- "yakui",
 ]
 
 [[package]]
