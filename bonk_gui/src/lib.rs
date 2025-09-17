@@ -1,4 +1,4 @@
-use engine_types::{ComponentRegistry, EditorState};
+use engine_types::EditorState;
 use yakui::Direction;
 use yakui::MainAxisSize;
 use yakui::image;

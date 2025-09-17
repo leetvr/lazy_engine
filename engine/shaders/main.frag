@@ -22,6 +22,7 @@ layout(std430, buffer_reference, buffer_reference_align = 16) readonly buffer Ve
 
 struct Material {
     vec4 baseColourFactor;
+    vec3 emissiveFactor;
     uint baseColourTextureID;
     uint normalTextureID;
     uint metallicRoughnessTextureID;

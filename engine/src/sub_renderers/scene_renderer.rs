@@ -5,12 +5,13 @@ use lazy_vulkan::{BufferAllocation, ImageManager, LazyVulkan, Pipeline, SubRende
 use lazy_vulkan_gltf::LoadedAsset;
 use std::{collections::HashMap, f32::consts::TAU, path::PathBuf};
 
-static VERTEX_SHADER_PATH: &'static str = "bonk/shaders/main.vert.spv";
-static FRAGMENT_SHADER_PATH: &'static str = "bonk/shaders/main.frag.spv";
+static VERTEX_SHADER_PATH: &'static str = "engine/shaders/main.vert.spv";
+static FRAGMENT_SHADER_PATH: &'static str = "engine/shaders/main.frag.spv";
 
 pub struct SceneRenderer {
     pipeline: Pipeline,
     index_buffer: BufferAllocation<u32>,
+    vertex_buffer: BufferAllocation<lazy_vulkan_gltf::Vertex>,
     assets: HashMap<String, LoadedAsset>,
     asset_path: PathBuf,
 }
@@ -21,6 +22,10 @@ impl SceneRenderer {
         let pipeline = lazy_vulkan
             .renderer
             .create_pipeline::<Registers>(VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
+        let vertex_buffer = lazy_vulkan
+            .renderer
+            .allocator
+            .allocate_buffer(10 * 1024 * 1000, vk::BufferUsageFlags::STORAGE_BUFFER);
         let index_buffer = lazy_vulkan
             .renderer
             .allocator
@@ -29,6 +34,7 @@ impl SceneRenderer {
         SceneRenderer {
             pipeline,
             index_buffer,
+            vertex_buffer,
             assets: Default::default(),
             asset_path,
         }
@@ -57,6 +63,7 @@ impl<'a> SubRenderer<'a> for SceneRenderer {
                 allocator,
                 image_manager,
                 &mut self.index_buffer,
+                &mut self.vertex_buffer,
             )
             .unwrap();
 
@@ -89,7 +96,8 @@ impl<'a> SubRenderer<'a> for SceneRenderer {
                 for primitive in &mesh.primitives {
                     let registers = Registers {
                         mvp: mvp * transform,
-                        vertex_buffer: primitive.vertex_buffer.device_address,
+                        vertex_buffer: self.vertex_buffer.device_address
+                            + primitive.vertex_buffer_offset,
                         material_buffer: primitive.material,
                     };
                     self.pipeline.update_registers(&registers);
@@ -149,26 +157,38 @@ static VULKAN_VERSION: &'static str = "vulkan1.2";
 #[cfg(not(target_vendor = "apple"))]
 static VULKAN_VERSION: &'static str = "vulkan1.3";
 
-pub fn compile_shaders() {
-    let _ = std::process::Command::new("glslc")
-        .arg("bonk/shaders/main.vert")
-        .arg(format!("--target-env={VULKAN_VERSION}"))
-        .arg("-g")
-        .arg("-o")
-        .arg(VERTEX_SHADER_PATH)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
+fn compile_shaders() {
+    for file in std::fs::read_dir("engine/shaders").unwrap() {
+        let file = file.unwrap();
+        if file.file_type().unwrap().is_dir() {
+            continue;
+        }
 
-    let _ = std::process::Command::new("glslc")
-        .arg("bonk/shaders/main.frag")
-        .arg(format!("--target-env={VULKAN_VERSION}"))
-        .arg("-g")
-        .arg("-o")
-        .arg(FRAGMENT_SHADER_PATH)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
+        let input_path = file.path();
+        let mut output_path = input_path.clone();
+        let extension = output_path.extension().unwrap().to_string_lossy();
+
+        if extension == "glsl" || extension == "spv" {
+            continue;
+        }
+
+        output_path.set_extension(format!("{extension}.spv"));
+
+        log::debug!("[SHADERS] Compiled {input_path:?} to {output_path:?}");
+
+        let status = std::process::Command::new("glslc")
+            .arg(&input_path)
+            .arg("-g")
+            .arg("-o")
+            .arg(&output_path)
+            .arg(format!("--target-env={VULKAN_VERSION}"))
+            .spawn()
+            .unwrap()
+            .wait()
+            .unwrap();
+
+        if !status.success() {
+            panic!("Failed to compile shader!");
+        }
+    }
 }

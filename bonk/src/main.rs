@@ -6,8 +6,8 @@ use crate::{
 };
 use engine::Engine;
 use engine_types::{
-    ComponentRegistry, EditorPlayMode, EditorState, GuiFn, InstanceID, InstanceNode, NodeID,
-    Prefab, PrefabDefinition, PrefabInstance, Scene, components::Transform,
+    ComponentRegistry, EditorPlayMode, GuiFn, InstanceID, InstanceNode, NodeID, Prefab,
+    PrefabDefinition, PrefabInstance, Scene, components::Transform,
 };
 use hecs::Entity;
 use lazy_vulkan::{LazyVulkan, StateFamily};
@@ -126,8 +126,8 @@ impl winit::application::ApplicationHandler for App {
         );
         let engine_texture = yakui_vulkan.add_user_texture(texture);
 
-        yakui_vulkan.transfers_submitted();
         yakui_vulkan.set_paint_limits(vulkan_context, &mut yak);
+        yakui_vulkan.transfers_submitted();
 
         let yakui_vulkan = Arc::new(Mutex::new(yakui_vulkan));
 

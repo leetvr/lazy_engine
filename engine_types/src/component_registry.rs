@@ -1,4 +1,4 @@
-use std::{any::TypeId, collections::HashMap, path::Component};
+use std::{any::TypeId, collections::HashMap};
 
 use crate::{
     CanYak, PaintFn,

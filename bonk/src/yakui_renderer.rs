@@ -54,7 +54,7 @@ impl<'a> SubRenderer<'a> for YakuiRenderer {
                     vk::ImageMemoryBarrier2::default()
                         .subresource_range(FULL_IMAGE)
                         .image(engine_image)
-                        .src_access_mask(vk::AccessFlags2::NONE)
+                        .src_access_mask(vk::AccessFlags2::COLOR_ATTACHMENT_WRITE)
                         .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
                         .dst_access_mask(vk::AccessFlags2::SHADER_READ)
                         .dst_stage_mask(vk::PipelineStageFlags2::FRAGMENT_SHADER)
