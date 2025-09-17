@@ -377,7 +377,8 @@ pub fn spawn_entity_for_node(
     entity
 }
 
-fn _next_node_id() -> NodeID {
+#[allow(unused)]
+fn next_node_id() -> NodeID {
     NodeID::new(NEXT_NODE_ID.fetch_add(1, Ordering::Relaxed))
 }
 
