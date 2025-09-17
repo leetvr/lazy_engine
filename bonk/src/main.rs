@@ -336,7 +336,7 @@ fn get_component_registry() -> ComponentRegistry {
     registry
 }
 
-fn spawn_prefab(
+fn _spawn_prefab(
     name: &str,
     prefab: &mut Prefab,
     scene: &mut Scene,
@@ -377,7 +377,7 @@ pub fn spawn_entity_for_node(
     entity
 }
 
-fn next_node_id() -> NodeID {
+fn _next_node_id() -> NodeID {
     NodeID::new(NEXT_NODE_ID.fetch_add(1, Ordering::Relaxed))
 }
 

@@ -5,12 +5,12 @@
 layout(location = 0) out vec2 outUV;
 
 struct Vertex {
-    vec4 position;
-    vec4 normal;
+    vec3 position;
+    vec3 normal;
     vec2 uv;
 };
 
-layout(std430, buffer_reference, buffer_reference_align = 16) readonly buffer VertexBuffer
+layout(scalar, buffer_reference, buffer_reference_align = 8) readonly buffer VertexBuffer
 {
     Vertex vertices[];
 };
@@ -23,7 +23,7 @@ struct Material {
     uint aoTextureID;
 };
 
-layout(scalar, buffer_reference, buffer_reference_align = 16) readonly buffer MaterialBuffer
+layout(scalar, buffer_reference, buffer_reference_align = 8) readonly buffer MaterialBuffer
 {
     Material material;
 };
@@ -36,6 +36,6 @@ layout(scalar, push_constant) uniform Registers {
 
 void main() {
     Vertex vertex = registers.vertexBuffer.vertices[gl_VertexIndex];
-    gl_Position = registers.mvp * vertex.position;
+    gl_Position = registers.mvp * vec4(vertex.position, 1.0);
     outUV = vertex.uv;
 }

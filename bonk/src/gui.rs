@@ -49,7 +49,7 @@ fn gui_inner(state: &mut AppState) -> bool {
     false
 }
 
-fn nudge(
+fn _nudge(
     prefab: &mut PrefabInstance,
     world: &mut hecs::World,
     node_entity_map: &HashMap<NodeID, Entity>,
